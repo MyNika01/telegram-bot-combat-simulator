@@ -23,7 +23,6 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Component
 @Slf4j
@@ -53,7 +52,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     Введите /help, чтобы снова увидеть это сообщение.
                      """;
 
-
+    // Текст для объяснения правил через "/gamerules"
     static final String RULES_TEXT =
                     """
                     Цель игры - снижать здоровье соперника и не допускать потерю собственного здоровья.
@@ -109,13 +108,17 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     static final String CHOOSE_DEFENSE = "Выберите направление защиты";
 
-    // Конструктор. Настройка кнопок главного меню. Бины?
+    // Конструктор. Настройка кнопок главного меню бота
+    // Столкнулся с проблемой - не понимал, что такое бины и почему на это жалуется ide
+    // Вылечил тем, что раскинул аннотации по классам (@Component, @Service, @Repository)
+    // https://javarush.com/forum/1459 https://qna.habr.com/q/1296162 https://javarush.com/quests/lectures/questspring.level01.lecture36
     @Autowired
     public TelegramBot(BotConfig config, CombatService combatService, UserRepository userRepository) {
-        // Чтобы решить проблему с бинами(?) добавил сервис и репозиторий в конструктор и раскидал аннотации на классы https://javarush.com/forum/1459 https://qna.habr.com/q/1296162 https://javarush.com/quests/lectures/questspring.level01.lecture36
+
         this.config = config;
         this.combatService = combatService;
         this.userRepository = userRepository;
+
         List<BotCommand> listOfCommands = new ArrayList<>();
         listOfCommands.add(new BotCommand("/start", "активировать бота"));
         listOfCommands.add(new BotCommand("/play", "начать игровой сеанс"));
@@ -123,10 +126,11 @@ public class TelegramBot extends TelegramLongPollingBot {
         listOfCommands.add(new BotCommand("/mydata", "посмотреть сохранённые данные"));
         listOfCommands.add(new BotCommand("/deletedata", "удалить сохранённые данные"));
         listOfCommands.add(new BotCommand("/help", "руководство для помощи"));
+
         try {
             this.execute(new SetMyCommands(listOfCommands, new BotCommandScopeDefault(), null));
         } catch (TelegramApiException e) {
-            log.error("Error setting bot's command list: " + e.getMessage());
+            log.error("Error at setting bot's command list: " + e.getMessage());
         }
     }
 
@@ -135,87 +139,101 @@ public class TelegramBot extends TelegramLongPollingBot {
         return config.getBotName();
     }
 
+    // Не разобрался, почему warning на getBotToken
     @Override
     public String getBotToken() {
         return config.getToken();
     }
 
-    // Прописываем поведение на каждое ожидаемое сообщение/команду от пользователя
+    // Прописываем поведение на каждое ожидаемое событие (update) от пользователя
     @Override
     public void onUpdateReceived(Update update) {
 
-        // Флоу разбора обычного сообщения - апдейт содержит сообщение и сообщение содержит текст (можно ли оставить одну провеоку текста?)
+        // Флоу разбора обычного сообщения - апдейт содержит сообщение и сообщение содержит текст (можно ли оставить одну проверку текста?)
         if (update.hasMessage() && update.getMessage().hasText()) {
-            String messageText = update.getMessage().getText();
-            long chatId = update.getMessage().getChatId();
-            String userName = update.getMessage().getChat().getUserName();
+
+            var msg = update.getMessage();
+            var chat = msg.getChat();
+            long chatId = msg.getChatId();
+            String messageText = msg.getText();
+            String userName = chat.getUserName();
+
+            //тут нужно проверить NPE, так как userName может не прийти
+            try {
+                if (userName.isEmpty()) userName = chat.getFirstName()+" "+msg.getChatId().toString();
+            }
+            catch (Exception e) {
+                log.error(ERROR_TEXT + e.getMessage());
+                userName = chat.getFirstName()+msg.getChatId().toString();
+            }
 
             switch (messageText) {
 
-                // Регистрируем юзера и отвечаем hello-сообщением
+                // Регистрируем пользователя, отвечаем hello-сообщением и сообщением-подсказкой
                 case "/start":
                     registerUser(update.getMessage());
                     startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
                     prepareAndSendMessage(chatId, "Нажмите /help или откройте меню бота для помощи");
                     break;
 
-                // Переход на игровой режим
+                // Переводим пользователя на выбор и создание игровой сессии
                 case "/play":
                     playCommandReceived(chatId, userName);
                     break;
 
-                // Сразу отвечаем help-сообщением
+                // Отвечаем пользователю help-сообщением
                 case "/help":
                     prepareAndSendMessage(chatId, HELP_TEXT);
                     break;
 
-                // Запускаем флоу удаления юзера из бд
+                // Запускаем флоу удаления пользователя из базы данных
                 case "/deletedata":
                     deleteData(chatId);
                     break;
 
-                // Показываем данные из бд юзеру
+                // Показываем пользователю его данные из базы данных
                 case "/mydata":
                     showUserData(chatId);
                     break;
 
+                // Показываем пользователю правила игры
                 case "/gamerules":
                     prepareAndSendMessage(chatId, RULES_TEXT);
                     break;
 
-                // Юзер нажал кнопку Атака
+                // Обрабатываем событие "Пользователь отправил сообщение - Атака"
                 case ATTACK:
                     sendHeadBodyFootChooseAndSetPlayerDirection(chatId, ATTACK, userName);
                     break;
 
-                // Юзер нажал кнопку Защита
+                // Обрабатываем событие "Пользователь отправил сообщение - Защита"
                 case DEFENSE:
                     sendHeadBodyFootChooseAndSetPlayerDirection(chatId, DEFENSE, userName);
                     break;
 
-                // Юзер нажал кнопку Голова для направления атаки или защиты
+                // Обрабатываем событие "Пользователь отправил сообщение - Голова"
                 case HEAD:
-                    setPlayerDirectionAndSendAttackDefenseChoose(chatId, HEAD, userName);
+                    setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, HEAD, userName);
                     break;
 
-                // Юзер нажал кнопку Тело для направления атаки или защиты
+                // Обрабатываем событие "Пользователь отправил сообщение - Тело"
                 case BODY:
-                    setPlayerDirectionAndSendAttackDefenseChoose(chatId, BODY, userName);
+                    setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, BODY, userName);
                     break;
 
-                // Юзер нажал кнопку Ноги для направления атаки или защиты
+                // Обрабатываем событие "Пользователь отправил сообщение - Ноги"
                 case FOOT:
-                    setPlayerDirectionAndSendAttackDefenseChoose(chatId, FOOT, userName);
+                    setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, FOOT, userName);
                     break;
 
-                //отправить месседж с одной кнопкой - получить результат, и сообщением, что надо ждать оппонента
+                // Обрабатываем событие "Пользователь отправил сообщение - Готов"
                 case "Готов":
                     sendOpponentWaitAndBlockUserChoose(chatId, userName);
                     break;
 
+                // Обрабатываем событие "Пользователь нажал Обновить"
                 case "Обновить":
                     sendCombatResultOrRefresh(chatId, userName);
-                    //отправить месседж с одной кнопкой - получить результат, и сообщением, что надо ждать оппонента
                     break;
 
                 // Отбивка на незнакомое сообщение/команду
@@ -224,7 +242,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
         }
 
-        // Флоу в случае ответа по Inline кнопке
+        // Флоу обработки событий, полученных через Inline кнопки (те, что встроены в сообщение)
         else if (update.hasCallbackQuery()) {
 
             String callbackData = update.getCallbackQuery().getData();
@@ -234,70 +252,83 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             switch (callbackData) {
 
-                // В случае нажатия Да (Do you really want to delete your data?)
+                // Обрабатываем событие "Пользователь нажал кнопку - Да. Был вопрос (Do you really want to delete your data?)"
                 case REG_YES:
                     userRepository.deleteByChatId(chatId);
                     String textREG_YES = "Ваши данные удалены";
                     executeEditMessageText(textREG_YES, chatId, messageId);
                     break;
 
-                // В случае нажатия Нет (Do you really want to delete your data?)
+                // Обрабатываем событие "Пользователь нажал кнопку - Нет. Был вопрос (Do you really want to delete your data?)"
                 case REG_NO:
                     String textREG_NO = "Ваши данные не изменены\n"+
                             "Нажмите /mydata для проверки сохранённой информации";
                     executeEditMessageText(textREG_NO, chatId, messageId);
                     break;
 
-                // В случае нажатия Онлайн (Выберите режим игры)
+                // Обрабатываем событие "Пользователь нажал кнопку - Онлайн. Был вопрос (Выберите режим игры)"
                 case "Онлайн":
                     String textOnline = "Выбран режим игры - Онлайн\n"+
                             "(В настоящее время режим Онлайн не доступен, прошу перейти в режим Оффлайн через /play)";
                     executeEditMessageText(textOnline, chatId, messageId);
                     break;
 
-                // В случае нажатия Оффлайн (Выберите режим игры)
+                // Обрабатываем событие "Пользователь нажал кнопку - Оффлайн. Был вопрос (Выберите режим игры)"
+                // todo переименовать Онлайн и Оффлайн на Против игрока и Против компьютера(?)
                 case "Оффлайн":
                     String textOffline = "Выбран режим игры - Оффлайн";
                     executeEditMessageText(textOffline, chatId, messageId);
                     checkOfflineReadiness(chatId);
                     break;
 
-                // В случае нажатия Да (Готовы начать битву?)
+                // Обрабатываем событие "Пользователь нажал кнопку - Да. Был вопрос (Готовы начать битву?)"
                 case PLAY_OFFLINE_YES:
+
                     String textPLAY_OFF_YES = "Ваш соперник - КоМпЬюТеР\n"+
                             "Делайте первый ход (пользуйтесь кнопками встроенной клавиатуры)";
+
+                    // Заботимся о том, чтобы не было дублирования сессии
                     if (combatService.hasUserActiveSession(userName)) {
+
                         do combatService.deleteUserSession(userName);
                         while (combatService.hasUserActiveSession(userName));
+
                         textPLAY_OFF_YES = "Ваш соперник - КоМпЬюТеР\n"+
                                 "Делайте первый ход (пользуйтесь кнопками встроенной клавиатуры)\n"+
                                 "Ваши прошлые сессии удалены. Больше не ломайте бота!";
                     }
+
                     executeEditMessageText(textPLAY_OFF_YES, chatId, messageId);
                     combatService.createOfflineSession(update.getCallbackQuery().getMessage().getChat().getUserName());
                     sendAttackDefenseChoose(chatId);
                     break;
 
-                // В случае нажатия Нет (Готовы начать битву?)
+                // Обрабатываем событие "Пользователь нажал кнопку - Нет. Был вопрос (Готовы начать битву?)"
                 case PLAY_OFFLINE_NO:
                     String textPLAY_OFF_NO = "Возвращаемся к выбору режима игры";
                     executeEditMessageText(textPLAY_OFF_NO, chatId, messageId);
                     playCommandReceived(chatId, userName);
                     break;
 
-                // предусмотреть много кратное нажатие на кнопку NEW_SESSION_YES
+                // Обрабатываем событие "Пользователь нажал кнопку - Да. Был вопрос (Удалить прошлую сессию?)"
                 case "NEW_SESSION_YES":
+
                     String textNEW_SESSION_YES = "Прошлая сессия удалена";
                     executeEditMessageText(textNEW_SESSION_YES, chatId, messageId);
-                    do combatService.deleteUserSession(userName); while (combatService.hasUserActiveSession(userName));
+
+                    // Заботимся о том, чтобы не было дублирования сессии
+                    do combatService.deleteUserSession(userName);
+                    while (combatService.hasUserActiveSession(userName));
+
                     playCommandReceived(chatId, userName);
                     break;
 
+                // Обрабатываем событие "Пользователь нажал кнопку - Нет. Был вопрос (Удалить прошлую сессию?)"
                 case "NEW_SESSION_NO":
                     String textNEW_SESSION_NO = "Возвращаем Вас на прошлую сессию";
                     executeEditMessageText(textNEW_SESSION_NO, chatId, messageId);
-                    // проработать все статусы
-                   // sendCombatResultOrRefresh(chatId, userName);
+                    // проработать все статусы - вспомнить откуда и зачем?
+                    // sendCombatResultOrRefresh(chatId, userName);
                     sendActualGameMessage(chatId, userName);
                     break;
 
@@ -308,19 +339,20 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // Формирование приветственного сообщения
+    // Формируем приветственное сообщение, отправляем пользователю
     private void startCommandReceived(long chatId, String name) {
 
+        // Пример строки со смайликом
         String answer = EmojiParser.parseToUnicode("Привет, " + name + ", рад нашей встрече!" + " :santa:");
         log.info("Replied to user " + name);
 
         prepareAndSendMessage(chatId, answer);
     }
 
-    // Флоу регистрации юзера
+    // Регистрируем пользователя
     private void registerUser(Message msg) {
 
-        // Сохраняем юзера в бд, если он ещё не зареган
+        // Сохраняем юзера в бд, только если он отсутствует в бд
         if(userRepository.findByChatId(msg.getChatId()).isEmpty()) {
 
             var chatId = msg.getChatId();
@@ -331,18 +363,29 @@ public class TelegramBot extends TelegramLongPollingBot {
             user.setChatId(chatId);
             user.setFirstName(chat.getFirstName());
             user.setLastName(chat.getLastName());
-            user.setUserName(chat.getUserName());
+
+            String userName = chat.getUserName();
+
+            //тут нужно проверить NPE, потому что userName может прийти пустой
+            try {
+                if (userName.isEmpty()) userName = chat.getFirstName()+" "+msg.getChatId().toString();
+            }
+            catch (Exception e) {
+                log.error(ERROR_TEXT + e.getMessage());
+                userName = chat.getFirstName()+msg.getChatId().toString();
+            }
+
+            user.setUserName(userName);
             user.setCreatedTime(msg.getDate().toString());
 
             userRepository.save(user);
-            log.info("user saved: " + user);
+            log.info("User saved: " + user);
         }
     }
 
-    // Флоу перевода юзера в режим игры. Проверяем наличие юзера в бд. Предлпагаем выбрать режим игры
+    // Проверяем наличие юзера в бд. Предлагаем выбрать режим игры или завершить/продолжить новую
     private void playCommandReceived(long chatId, String userName) {
 
-        // Возможно стоит перенести проверку юзера выше - на onUpdateReceived, чтобы избавиться от повторений условия в разных функциях
         if(userRepository.findByChatId(chatId).isPresent()) {
 
             SendMessage message = new SendMessage();
@@ -352,7 +395,6 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 message.setText("Выберите режим игры");
                 setInlineKeyboard(message, "Онлайн", "Онлайн", "Оффлайн", "Оффлайн");
-
                 executeMessage(message);
 
             } else {
@@ -360,14 +402,13 @@ public class TelegramBot extends TelegramLongPollingBot {
                 message.setText("У Вас имеется активная сессия. Желаете завершить её и начать новую?");
                 setInlineKeyboard(message, YES, "NEW_SESSION_YES", NO, "NEW_SESSION_NO");
                 executeMessage(message);
-
             }
-
-        } // Если юзер не существует в бд, то сообщаем ему об этом
+        }
+        // Если пользователь не найден в бд, то сообщаем ему об этом
         else {sendZeroRegistrationMessage(chatId);}
     }
 
-    // Спрашиваем у юзера готов ли он начать игру
+    // Спрашиваем у пользователя готов ли он начать Оффлайн игру
     private void checkOfflineReadiness(long chatId) {
 
         SendMessage message = new SendMessage();
@@ -379,7 +420,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         executeMessage(message);
     }
 
-    // Отправляем сообщение c предложением выбрать Атака или Защита
+    // Отправляем сообщение с двумя кнопками - Атака и Защита
     private void sendAttackDefenseChoose(long chatId) {
 
         SendMessage message = new SendMessage();
@@ -391,7 +432,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         executeMessage(message);
     }
 
-    // Отправляем сообщение c предложением выбрать Голова, Тело или Ноги. Передаём статус Атаки/Защиты в сервис битвы
+    // Передаём в сервис контроля игровых сессий выбор пользователя - Атака или Защита
+    // Отправляем пользователю сообщение с тремя кнопками - Голова, Тело и Ноги
     private void sendHeadBodyFootChooseAndSetPlayerDirection(long chatId, String answer, String userName) {
 
         SendMessage message = new SendMessage();
@@ -411,8 +453,10 @@ public class TelegramBot extends TelegramLongPollingBot {
         executeMessage(message);
     }
 
-    // Отправляем сообщение c предложением выбрать Голова, Тело или Ноги. Передаём статус Атаки/Защиты в сервис битвы
-    private void setPlayerDirectionAndSendAttackDefenseChoose(long chatId, String answer, String userName) {
+    // Передаём в сервис контроля игровых сессий выбор пользователя - Голова, Тело или Ноги
+    // Если пользователь уже выбрал Атака и Защиту, то готовим сообщение с тремя кнопками - Атака, Защита и Готов
+    // В противном случае готовим кнопки - Атака и Защита
+    private void setPlayerDirectionAndPrepareAttackDefenseChoose(long chatId, String answer, String userName) {
 
         switch (answer) {
             case HEAD -> {
@@ -433,6 +477,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             sendAttackDefenseChoose(chatId);
     }
 
+    // Отправляем пользователю сообщение с тремя кнопками - Атака, Защита и Готов
     private void sendAttackDefenseReadyChoose(long chatId, String userName) {
 
         SendMessage message = new SendMessage();
@@ -447,74 +492,97 @@ public class TelegramBot extends TelegramLongPollingBot {
         executeMessage(message);
     }
 
+    // Обрабатываем конец раунда (когда пользователь подтвердил готовность)
     private void sendOpponentWaitAndBlockUserChoose(long chatId, String userName) {
 
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
 
+        // Ставим игроку статус block, чтобы он не мог изменить свой выбор в раунде
         combatService.updateSession("block", userName);
 
+        // Уже оба игрока подтвердили готовность? Если да, то статус сессии должен быть "doAction" (==true)
         if (combatService.getSessionStatus(userName).equals("doAction")) {
 
+            // Активируем подсчёт раунда, получаем результат раунда по игроку, отправляем результат игроку
             message.setText(combatService.combatResult(userName));
             executeMessage(message);
 
+            // Это был финальный раунд? Если нет, то игрок остался в сессии
             if (combatService.hasUserActiveSession(userName)) {
 
+                // Отдаём пользователю игровые кнопки для продолжения
                 sendAttackDefenseChoose(chatId);
+            }
 
-            } else {
+            // Это был финальный раунд? Если да, то игрок уже удалён из сессии
+            else {
 
+                // Предлагаем пользователю сыграть снова
                 message.setText("Нажмите /play, чтобы сыграть снова!");
                 setReplyKeyboard(message, "/play", "/play");
                 executeMessage(message);
             }
         }
 
+        // Это был финальный раунд? Если нет, то игрок остался в сессии
         if (combatService.hasUserActiveSession(userName)) {
 
+            // Пользователь находится в состоянии ожидания? Если да, то у него должен быть статус "block"
             if (combatService.getPlayerStatus(userName).equals("block")) {
 
+                // Предлагаем пользователю нажимать на кнопку, чтобы получить результаты раунда (после готовности соперника)
                 message.setText("Ваш выбор зафиксирован, ожидаем ход соперника");
                 setReplyKeyboard(message, "Обновить", "Обновить");
-
                 executeMessage(message);
             }
         }
     }
 
+    // Обрабатываем ожидание нового раунда (когда ты - готов, а соперник - не готов)
     private void sendCombatResultOrRefresh(long chatId, String userName) {
 
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
 
+        // Готовы ли результаты раунда? Если да, то статус игрока будет "resultReady"
         if (combatService.getPlayerStatus(userName).equals("resultReady")) {
 
+            // Отправляем пользователю результаты последнего раунда
             message.setText(combatService.getPlayerMessageAndRefreshStatus(userName));
             executeMessage(message);
 
+            // Был ли раунд финальным? Если да, то статус сессии должен быть "block"
             if (combatService.getSessionStatus(userName).equals("block")) {
 
+                // Предлагаем пользователю сыграть снова
                 message.setText("Нажмите /play, чтобы сыграть снова!");
                 setReplyKeyboard(message, "/play", "/play");
                 executeMessage(message);
 
+                // Полностью удаляем игровую сессию
                 combatService.updateSession("delete", userName);
-
-            } else {
-
-                sendAttackDefenseChoose(chatId);
             }
 
-        } else {
+            // Был ли раунд финальным? Если нет, то статус сессии ожидаем не "block"
+            else {
 
+                // Продолжаем игру
+                sendAttackDefenseChoose(chatId);
+            }
+        }
+
+        // Готовы ли результаты раунда? Если нет, то статус игрока будет не "resultReady"
+        else {
+
+            // Предлагаем пользователю нажимать на кнопку, чтобы получить результаты раунда (после готовности соперника)
             message.setText("Соперник скрылся! Приготовьтесь к внезапной атаке!");
             setReplyKeyboard(message, "Обновить", "Обновить");
-
             executeMessage(message);
         }
     }
 
+    // todo Не обрабатывать команды пользователя, если они не совпадают с типом ожидаемого события. Сообщить об этом пользователю
     private void sendActualGameMessage (long chatId, String userName) {
 
         var playerStatus = combatService.getPlayerStatus(userName);
@@ -525,43 +593,43 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     }
 
-
-    // Флоу удаления юзера из бд
+    // Удаляем пользователя из базы данных
     private void deleteData(long chatId) {
 
-        // Если юзер существует в бд, спрашиваем: "Удаляем или не удаляем?" с Inline кнопками
-        if(userRepository.findByChatId(chatId).isPresent()) { // Возможно стоит перенести проверку юзера выше - на onUpdateReceived
+        // Если пользователь существует в бд, то спрашиваем: "Удаляем или не удаляем данные?"
+        if(userRepository.findByChatId(chatId).isPresent()) {
 
             SendMessage message = new SendMessage();
             message.setChatId(String.valueOf(chatId));
             message.setText("Вы действительно хотите удалить данные?");
 
+            // Прикрепляем кнопки Да/Нет
             setInlineKeyboard(message, YES, REG_YES, NO, REG_NO);
 
             executeMessage(message);
         }
 
-        // Если юзер не существует в бд, то сообщаем ему об этом
-        else {sendZeroRegistrationMessage(chatId);}
+        // Если пользователь не существует в бд, то сообщаем ему об этом
+        else sendZeroRegistrationMessage(chatId);
     }
 
     // Флоу поиска данных юзера через бд
     private void showUserData(long chatId) {
 
-        // Показываем дату, если юзер существует в бд
+        // Если пользователь имеется в бд, то показываем его данные
         if(userRepository.findByChatId(chatId).isPresent()) {
 
-            var user = userRepository.findByChatId(chatId); // Почитать про optional https://habr.com/ru/articles/658457/
-            String answer = user.get().toString(); // Подумать стоит ли добавлять проверку
+            var user = userRepository.findByChatId(chatId); // todo Тут читать про optional https://habr.com/ru/articles/658457/
+            String answer = user.get().toString(); // todo Подумать - стоит ли добавлять проверку? Содержимое optional может быть пустым в моём случае?
             prepareAndSendMessage(chatId, answer);
         }
 
-        // Отвечаем отказом, если юзер не существует в бд
-        else {sendZeroRegistrationMessage(chatId);}
+        // Если пользователь не существует в бд, то сообщаем ему об этом
+        else sendZeroRegistrationMessage(chatId);
     }
 
-    // Отправка сообщения с клавиатурой-кнопками
-    private void sendMessage(long chatId, String textToSend) {
+    // todo Разработать функцию, которая принимает на вход параметры для ReplyKeyboard и отправляет сообщение
+    private void sendMessageWithReplyKeyboard(long chatId, String textToSend) {
 
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
@@ -572,6 +640,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         executeMessage(message);
     }
 
+    // Отправить сообщение для пользователя без регистрации
     private void sendZeroRegistrationMessage(long chatId) {
 
         String answer = "Вы не зарегистрированы, данные Вашего пользователя не найдены\n"+
@@ -579,7 +648,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         prepareAndSendMessage(chatId, answer);
     }
 
-    //Подготовка сообщения к отправке и переход на отправку
+    // Готовим сообщение по ChatId и Text. Выполняем отправку через executeMessage
     private void prepareAndSendMessage(long chatId, String textToSend){
 
         SendMessage message = new SendMessage();
@@ -588,7 +657,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         executeMessage(message);
     }
 
-    // Задать клавиатуру с привязанными кнопками
+    // Устанавливаем сообщению клавиатуру с двумя Inline-кнопками
     public void setInlineKeyboard(SendMessage message, String text1, String callbackData1, String text2, String callbackData2) {
 
         InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
@@ -613,7 +682,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setReplyMarkup(markupInLine);
     }
 
-    // Задать клавиатуру с вложенными кнопками
+    // Устанавливаем сообщению клавиатуру с тремя Reply-кнопками
     public void setReplyKeyboard(SendMessage message, String key1, String key2, String key3) { //Можно ли передать сюда лист из ключей?
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
@@ -641,6 +710,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setReplyMarkup(keyboardMarkup);
     }
 
+    // Устанавливаем сообщению клавиатуру с двумя Reply-кнопками
     public void setReplyKeyboard(SendMessage message, String key1, String key2) {
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
@@ -659,7 +729,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setReplyMarkup(keyboardMarkup);
     }
 
-    // Редактирование текста уже отправленного сообщения
+    // Редактируем текст уже отправленного сообщения
     private void executeEditMessageText(String text, long chatId, long messageId){
 
         EditMessageText message = new EditMessageText();
@@ -667,6 +737,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setText(text);
         message.setMessageId((int) messageId);
 
+        // Тут нужно exception, так как взаимодействие с api telegram
         try {
             execute(message);
         } catch (TelegramApiException e) {
@@ -674,9 +745,10 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // Финальное действие отправки сообщения
+    // Функция осуществления/отправки текстового сообщения
     private void executeMessage(SendMessage message) {
 
+        // Тут нужно exception, так как взаимодействие с api telegram
         try {
             execute(message);
         } catch (TelegramApiException e) {
