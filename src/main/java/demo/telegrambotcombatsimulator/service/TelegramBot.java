@@ -36,7 +36,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     // Текст для ответа на запрос "/help"
     static final String HELP_TEXT =
-            """
+                    """
                     Вы можете выполнять команды из главного меню слева или набрав команду:
 
                     Введите /start, чтобы активировать бота;
@@ -50,7 +50,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     Введите /deletedata, чтобы удалить хранящиеся о Вас данные;
 
                     Введите /help, чтобы снова увидеть это сообщение.
-                     """;
+                    """;
 
     // Текст для объяснения правил через "/gamerules"
     static final String RULES_TEXT =
@@ -76,19 +76,19 @@ public class TelegramBot extends TelegramLongPollingBot {
     // Константа YES под текстовое наполнение кнопки
     static final String YES = "Да";
 
-    // Константа regYes под аргумент для .setCallbackData() в рамках регистрации
+    // Константа REG_YES под аргумент для .setCallbackData() в рамках регистрации
     static final String REG_YES = "REG_YES";
 
-    // Константа regYes под аргумент для .setCallbackData() в рамках начала игры
+    // Константа PLAY_OFFLINE_YES под аргумент для .setCallbackData() в рамках начала игры
     static final String PLAY_OFFLINE_YES = "PLAY_OFFLINE_YES";
 
     // Константа NO под текстовое наполнение кнопки
     static final String NO = "Нет";
 
-    // Константа regNo под аргумент для .setCallbackData() в рамках регистрации
+    // Константа REG_NO под аргумент для .setCallbackData() в рамках регистрации
     static final String REG_NO = "REG_NO";
 
-    // Константа regYes под аргумент для .setCallbackData() в рамках начала игры
+    // Константа PLAY_OFFLINE_NO под аргумент для .setCallbackData() в рамках начала игры
     static final String PLAY_OFFLINE_NO = "PLAY_OFFLINE_NO";
 
     // Константа "Возникла ошибка" под обработку исключений

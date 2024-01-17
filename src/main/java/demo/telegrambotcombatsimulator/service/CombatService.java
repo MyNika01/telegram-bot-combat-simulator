@@ -11,14 +11,15 @@ public class CombatService {
     @Autowired
     private CombatRepository combatRepository;
 
+    // Определяем начальное здоровье игроков
     final int MAX_HP = 50;
 
+    // Создаём офлайн сессию
     public void createOfflineSession(String playerName) {
-
-        //надо сначала проверить имеется ли активная сессия, тогда вернуться в активную сессию
 
         Combat combat = new Combat();
 
+        // todo Часть из этого можно вынести в конструктор combat
         combat.setFirstPlayerName(playerName);
         combat.setSecondPlayerName("Компьютер");
         combat.setFirstPlayerHealth(MAX_HP);
@@ -36,11 +37,11 @@ public class CombatService {
         combatRepository.save(combat);
     }
 
+    // Создаём онлайн сессию
     public void createOnlineSession(String firstPlayerName) {
 
-        //надо сначала проверить имеется ли свободная сессия, тогда нобъединить юзеров в один матч
-        //функция поиска сессии
-        //предусмотреть одновременный сейв по одной записи
+        // todo Продумать механизм объединения двух игроков в одну сессию
+        // todo Обязательно! Проверить/предусмотреть одновременный сейв по одной записи
 
         Combat combat = new Combat();
 
@@ -59,6 +60,7 @@ public class CombatService {
         combatRepository.save(combat);
     }
 
+    // Обрабатываем игровое событие (action)
     public void updateSession(String action, String playerName) {
 
         Combat combat = combatRepository.getByPlayerName(playerName);
@@ -68,10 +70,13 @@ public class CombatService {
         var firstPlayerStatus = combat.getFirstPlayerStatus();
         var secondPlayerStatus = combat.getSecondPlayerStatus();
 
+
         if (!combat.getSessionStatus().equals("block")) {
 
+            // В зависимости от события меняем статусы в сессии
             switch (action) {
 
+                // Меняем статус игрока на "Ожидаем выбор направления атаки"
                 case "Атака" -> {
                     if (playerName.equals(firstPlayerName)) {
                         combat.setFirstPlayerStatus("waitAttack");
@@ -82,6 +87,7 @@ public class CombatService {
                     }
                 }
 
+                // Меняем статус игрока на "Ожидаем выбор направления защиты"
                 case "Защита" -> {
                     if (playerName.equals(firstPlayerName)) {
                         combat.setFirstPlayerStatus("waitDefense");
@@ -92,6 +98,7 @@ public class CombatService {
                     }
                 }
 
+                // Указываем направление на Голову для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Голова" -> {
                     if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals("waitAttack")) {
                         combat.setFirstPlayerAttackDirection("head");
@@ -112,6 +119,7 @@ public class CombatService {
                     }
                 }
 
+                // Указываем направление на Тело для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Туловище" -> {
                     if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals("waitAttack")) {
                         combat.setFirstPlayerAttackDirection("body");
@@ -132,6 +140,7 @@ public class CombatService {
                     }
                 }
 
+                // Указываем направление на Ноги для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Ноги" -> {
                     if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals("waitAttack")) {
                         combat.setFirstPlayerAttackDirection("legs");
@@ -152,6 +161,7 @@ public class CombatService {
                     }
                 }
 
+                // Блокируем статус игрока, так как он сообщил о своей готовности. В этом случае нельзя менять выбор направлений!
                 case "block" -> {
                     if (playerName.equals(firstPlayerName)) {
                         combat.setFirstPlayerStatus("block");
@@ -163,6 +173,8 @@ public class CombatService {
                 }
             }
 
+            // Если пользователь сделал выбор Атаки и Защиты, то ставим статус ready
+            // Этот статус позволяет определить, что пользователю нужно отправить кнопку Готов
             if ((combat.getFirstPlayerAttackDirection().equals("head") ||
                     combat.getFirstPlayerAttackDirection().equals("body") ||
                     combat.getFirstPlayerAttackDirection().equals("legs")) &&
@@ -174,44 +186,42 @@ public class CombatService {
                 combat.setFirstPlayerStatus("ready");
             }
 
-
+            // Аналогичная проверка для второго игрока
             if ((combat.getSecondPlayerAttackDirection().equals("head") ||
                     combat.getSecondPlayerAttackDirection().equals("body") ||
                     combat.getSecondPlayerAttackDirection().equals("legs")) &&
                     (combat.getSecondPlayerDefenseDirection().equals("head") ||
                             combat.getSecondPlayerDefenseDirection().equals("body") ||
                             combat.getSecondPlayerDefenseDirection().equals("legs")) &&
-                    combat.getSecondPlayerStatus().equals("empty") //решение проблемы, что игрок не можем перевыбрать свою атаку/защиту
+                    combat.getSecondPlayerStatus().equals("empty")
             ) {
                 combat.setSecondPlayerStatus("ready");
             }
 
+            // Если противник - Компьютер, то генерируем направления и ставим статус второму игроку
             if (secondPlayerName.equals("Компьютер") && combat.getSecondPlayerStatus().equals("empty")) {
                 generateAndSetComputerDirection(combat);
             }
 
+            // Если противник - Компьютер, то генерируем направления и ставим статус второму игроку
             if (combat.getFirstPlayerStatus().equals("block") && combat.getSecondPlayerStatus().equals("block")) {
                 combat.setSessionStatus("doAction");
             }
 
             combatRepository.save(combat);
+        }
 
-        } else if (action.equals("delete")) {
-
-       //     if (playerName.equals(firstPlayerName)) {
-       //         combat.setFirstPlayerName("delete");
-       //     } else {
-       //         combat.setSecondPlayerStatus("delete");
-       //     }
-
-       //     if (combat.getFirstPlayerName().equals("delete") && combat.getSecondPlayerStatus().equals("delete"))
+        // Если получили событие "Удалить сессию"
+        else if (action.equals("delete")) {
 
             combatRepository.deleteByPlayerName(playerName);
         }
     }
 
+    // Через случайный выбор определяем игровые действия компьютера и обновляем статус второго игрока
     public void generateAndSetComputerDirection(Combat combat) {
 
+        // todo Протестировать рандом!
         int max = 3, min = 1;
         int attackDirection = (int) ((Math.random() * (max - min)) + min);
         int defenseDirection = (int) ((Math.random() * (max - min)) + min);
@@ -231,10 +241,16 @@ public class CombatService {
         combat.setSecondPlayerStatus("block");
     }
 
+    // Подсчитываем результаты раунда
+    // todo Вынести часто используемые параметры в начало
     public String combatResult (String playerName) {
 
         Combat combat = combatRepository.getByPlayerName(playerName);
 
+        // Важно определить какой из игроков попал сюда первым, потому что
+        // этот игрок сразу получит результат раунда, а второму
+        // игроку нужно будет забрать результаты после подсчёта
+        // Поэтому задаём оставшемуся игроку статус "Забери результат"
         if (combat.getFirstPlayerName().equals(playerName)) {
             combat.setFirstPlayerStatus("empty");
             combat.setSecondPlayerStatus("resultReady");
@@ -243,6 +259,8 @@ public class CombatService {
             combat.setFirstPlayerStatus("resultReady");
         }
 
+        // Если второй игрок компьютер, то считаем, что он уже забрал свой результат
+        // todo Можно подумать - вынести ненужные операции, если второй игрок Компьютер
         if (combat.getSecondPlayerName().equals("Компьютер")) {
             combat.setSecondPlayerStatus("empty");
         }
@@ -252,38 +270,47 @@ public class CombatService {
         String spAttack = combat.getSecondPlayerAttackDirection();
         String spDefense = combat.getSecondPlayerDefenseDirection();
 
+        // Наносим урон игроку, если по нему попал соперник
         if (!fpAttack.equals(spDefense)) combat.setSecondPlayerHealth(combat.getSecondPlayerHealth() - 10);
         if (!spAttack.equals(fpDefense)) combat.setFirstPlayerHealth(combat.getFirstPlayerHealth() - 10);
 
+        // Обнуляем направления
         combat.setFirstPlayerAttackDirection("empty");
         combat.setFirstPlayerDefenseDirection("empty");
         combat.setSecondPlayerAttackDirection("empty");
         combat.setSecondPlayerDefenseDirection("empty");
 
+        // Формируем сообщение с результатом для первого игрока
         combat.setFirstPlayerMessage(
                 "Соперник нанёс удар в "+transToRus(spAttack)+", а вы поставили защиту на "+transToRus(fpDefense)+"\n"+
                         "Ваше здоровье "+combat.getFirstPlayerHealth()+"/50\n"+
                         "Вы нанесли удар в "+transToRus(fpAttack)+", а соперник поставил защиту на "+transToRus(spDefense)+"\n"+
                         "Здоровье соперника "+combat.getSecondPlayerHealth()+"/50");
 
+        // Формируем сообщение с результатом для второго игрока
         combat.setSecondPlayerMessage(
                 "Соперник нанёс удар в "+transToRus(fpAttack)+", а вы поставили защиту на "+transToRus(spDefense)+"\n"+
                         "Ваше здоровье "+combat.getSecondPlayerHealth()+"/50\n"+
                         "Вы нанесли удар в "+transToRus(spAttack)+", а соперник поставил защиту на "+transToRus(fpDefense)+"\n"+
                         "Здоровье соперника "+combat.getFirstPlayerHealth()+"/50");
 
+        // Возвращаем статус сессии на Подготовка
         combat.setSessionStatus("actionPrepare");
 
+        // Проверяем закончился ли раунд поражением хотя бы одного игрока
         if (combat.getFirstPlayerHealth() == 0 || combat.getSecondPlayerHealth() == 0) {
 
+            // Блокируем изменения в сессии для игрока
             combat.setSessionStatus("block");
 
+            // Удаляем игрока из сессии, так как он больше не сможет в ней принимать участие
             if (combat.getFirstPlayerName().equals(playerName)) {
                 combat.setFirstPlayerName("deleted");
             } else {
                 combat.setSecondPlayerName("deleted");
             }
 
+            // Формируем финальное сообщение в зависимости от результата
             if (combat.getFirstPlayerHealth() == 0 && combat.getSecondPlayerHealth() != 0) {
 
                 combat.setFirstPlayerMessage(combat.getFirstPlayerMessage() + "\n" +
@@ -293,6 +320,7 @@ public class CombatService {
                         "Ваше сражение окончено - соперник разгромлен!");
             }
 
+            // Формируем финальное сообщение в зависимости от результата
             if (combat.getSecondPlayerHealth() == 0 && combat.getFirstPlayerHealth() != 0) {
 
                 combat.setSecondPlayerMessage(combat.getSecondPlayerMessage() + "\n" +
@@ -302,6 +330,7 @@ public class CombatService {
                         "Ваше сражение окончено - соперник разгромлен!");
             }
 
+            // Формируем финальное сообщение в зависимости от результата
             if (combat.getSecondPlayerHealth() == 0 && combat.getFirstPlayerHealth() == 0) {
 
                 combat.setFirstPlayerMessage(combat.getFirstPlayerMessage() + "\n" +
@@ -312,10 +341,12 @@ public class CombatService {
             }
         }
 
+        // Если в сессии остался только компьютер, то удаляем такую сессию
         if (combat.getSecondPlayerName().equals("Компьютер") && combat.getFirstPlayerName().equals("deleted"))
             combatRepository.deleteByPlayerName(playerName);
         else combatRepository.save(combat);
 
+        // В зависимости от игрока возвращаем нужное сообщение с результатом
         if (combat.getFirstPlayerName().equals(playerName) || combat.getFirstPlayerName().equals("deleted")) {
             return combat.getFirstPlayerMessage();
 
@@ -324,10 +355,12 @@ public class CombatService {
         }
     }
 
+    // Получить статус сессии
     public String getSessionStatus(String playerName) {
         return combatRepository.getByPlayerName(playerName).getSessionStatus();
     }
 
+    // Получить статус игрока
     public String getPlayerStatus(String playerName) {
         if (combatRepository.getByPlayerName(playerName).getFirstPlayerName().equals(playerName))
             return combatRepository.getByPlayerName(playerName).getFirstPlayerStatus();
@@ -335,6 +368,7 @@ public class CombatService {
             return combatRepository.getByPlayerName(playerName).getSecondPlayerStatus();
     }
 
+    // Получить сообщение с результатом раунда и обнулить статус игрока
     public String getPlayerMessageAndRefreshStatus(String playerName) {
 
         setPlayerStatus(playerName, "empty");
@@ -345,6 +379,7 @@ public class CombatService {
             return combatRepository.getByPlayerName(playerName).getSecondPlayerMessage();
     }
 
+    // Поставить статус игроку
     public void setPlayerStatus(String playerName, String playerStatus) {
 
         Combat combat = combatRepository.getByPlayerName(playerName);
@@ -357,18 +392,7 @@ public class CombatService {
         combatRepository.save(combat);
     }
 
-    public void setPlayerName(String oldPlayerName, String newPlayerName) {
-
-        Combat combat = combatRepository.getByPlayerName(oldPlayerName);
-
-        if (combat.getFirstPlayerName().equals(oldPlayerName))
-            combat.setFirstPlayerStatus(newPlayerName);
-        else
-            combat.setSecondPlayerStatus(oldPlayerName);
-
-        combatRepository.save(combat);
-    }
-
+    // Перевести ключевые слова с английского на русский
     private String transToRus (String engWord) {
         switch (engWord) {
             case "head" -> {
@@ -386,14 +410,17 @@ public class CombatService {
         }
     }
 
+    // Проверяем существует ли активная сессия у пользователя
     public boolean hasUserActiveSession (String playerName) {
         return combatRepository.findByPlayerName(playerName).isPresent();
     }
 
+    // Удаляем сессию пользователя
     public void deleteUserSession (String playerName) {
         combatRepository.deleteByPlayerName(playerName);
     }
 
+    // Отдаём результат последнего раунда пользователю
     public String getLastPlayerChoose (String playerName) {
 
         Combat combat = combatRepository.getByPlayerName(playerName);
