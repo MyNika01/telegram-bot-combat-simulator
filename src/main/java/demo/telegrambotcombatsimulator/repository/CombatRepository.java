@@ -11,13 +11,13 @@ import java.util.UUID;
 @Repository
 public interface CombatRepository extends MongoRepository<Combat, UUID> {
 
-    @Query("{ $or: [ {firstPlayerName: ?0}, {secondPlayerName: ?0} ] }")
+    @Query("{ $or: [ {\"firstPlayer.name\": ?0}, {\"secondPlayer.name\": ?0} ] }")
     Combat getByPlayerName(String playerName);
 
-    @Query("{ $or: [ {firstPlayerName: ?0}, {secondPlayerName: ?0} ] }")
+    @Query("{ $or: [ {\"firstPlayer.name\": ?0}, {\"secondPlayer.name\": ?0} ] }")
     Optional <Combat> findByPlayerName(String playerName);
 
-    @Query(value="{ $or: [ {firstPlayerName: ?0}, {secondPlayerName: ?0} ] }", delete = true)
+    @Query(value="{ $or: [ {\"firstPlayer.name\": ?0}, {\"secondPlayer.name\": ?0} ] }", delete = true)
     void deleteByPlayerName(String playerName);
 
 }

@@ -1,34 +1,22 @@
 package demo.telegrambotcombatsimulator.entity;
 
-import lombok.Getter;
-import lombok.Setter;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.MongoId;
 
-@Getter
-@Setter
+import java.time.LocalDateTime;
+
 @Document ("usersData")
-public class User {
+public record User (Long chatId, String firstName, String lastName, String userName, LocalDateTime createdTime) {
 
-    private Long chatId;
-
-    private String firstName;
-
-    private String lastName;
-
-    private String userName;
-
-    private String createdTime;
-
-//  private Date createdTime; todo
-
+    public User (Long chatId, String firstName, String lastName, String userName) {
+        this (chatId, firstName, lastName, userName, LocalDateTime.now());
+    }
     public String toString() {
-        return "User{" +
-                "chatId=" + chatId +
-                ", firstName='" + firstName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", userName='" + userName + '\'' +
-                ", createdTime='" + createdTime + '\'' +
-                '}';
+        return "Пользователь " + userName + "\n" +
+                "[Номер чата: " + chatId +
+                ", Имя: " + firstName +
+                ", Фамилия: " + lastName +
+                ", Дата регистрации: " + createdTime +
+                "]";
     }
 }

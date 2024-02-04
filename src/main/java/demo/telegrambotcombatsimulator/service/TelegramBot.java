@@ -3,6 +3,7 @@ package demo.telegrambotcombatsimulator.service;
 import com.vdurmont.emoji.EmojiParser;
 import demo.telegrambotcombatsimulator.config.BotConfig;
 import demo.telegrambotcombatsimulator.entity.User;
+import demo.telegrambotcombatsimulator.enums.SessionStatusType;
 import demo.telegrambotcombatsimulator.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,8 +22,14 @@ import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageTe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+
+import static demo.telegrambotcombatsimulator.enums.PlayerStatusType.*;
+import static demo.telegrambotcombatsimulator.enums.SessionStatusType.DO_ACTION;
+import static demo.telegrambotcombatsimulator.enums.SessionStatusType.S_BLOCK;
 
 @Component
 @Slf4j
@@ -101,12 +108,20 @@ public class TelegramBot extends TelegramLongPollingBot {
     static final String HEAD = "Голова";
 
     static final String BODY = "Туловище";
-
+    
     static final String FOOT = "Ноги";
 
     static final String CHOOSE_ATTACK = "Выберите направление атаки";
 
     static final String CHOOSE_DEFENSE = "Выберите направление защиты";
+
+    static final String ONLINE = "Онлайн";
+
+    static final String OFFLINE = "Оффлайн";
+
+    static final String REFRESH = "Обновить";
+
+    static final String READY = "Готов";
 
     // Конструктор. Настройка кнопок главного меню бота
     // Столкнулся с проблемой - не понимал, что такое бины и почему на это жалуется ide
@@ -134,6 +149,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
+    /**
+     * Проставляем getBotName и getToken
+     */
     @Override
     public String getBotUsername() {
         return config.getBotName();
@@ -227,12 +245,12 @@ public class TelegramBot extends TelegramLongPollingBot {
                     break;
 
                 // Обрабатываем событие "Пользователь отправил сообщение - Готов"
-                case "Готов":
+                case READY:
                     sendOpponentWaitAndBlockUserChoose(chatId, userName);
                     break;
 
                 // Обрабатываем событие "Пользователь нажал Обновить"
-                case "Обновить":
+                case REFRESH:
                     sendCombatResultOrRefresh(chatId, userName);
                     break;
 
@@ -267,7 +285,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     break;
 
                 // Обрабатываем событие "Пользователь нажал кнопку - Онлайн. Был вопрос (Выберите режим игры)"
-                case "Онлайн":
+                case ONLINE:
                     String textOnline = "Выбран режим игры - Онлайн\n"+
                             "(В настоящее время режим Онлайн не доступен, прошу перейти в режим Оффлайн через /play)";
                     executeEditMessageText(textOnline, chatId, messageId);
@@ -275,7 +293,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 // Обрабатываем событие "Пользователь нажал кнопку - Оффлайн. Был вопрос (Выберите режим игры)"
                 // todo переименовать Онлайн и Оффлайн на Против игрока и Против компьютера(?)
-                case "Оффлайн":
+                case OFFLINE:
                     String textOffline = "Выбран режим игры - Оффлайн";
                     executeEditMessageText(textOffline, chatId, messageId);
                     checkOfflineReadiness(chatId);
@@ -299,7 +317,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     }
 
                     executeEditMessageText(textPLAY_OFF_YES, chatId, messageId);
-                    combatService.createOfflineSession(update.getCallbackQuery().getMessage().getChat().getUserName());
+                    combatService.createSession(update.getCallbackQuery().getMessage().getChat().getUserName(), "offline");
                     sendAttackDefenseChoose(chatId);
                     break;
 
@@ -353,30 +371,21 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void registerUser(Message msg) {
 
         // Сохраняем юзера в бд, только если он отсутствует в бд
-        if(userRepository.findByChatId(msg.getChatId()).isEmpty()) {
+        if (userRepository.findByChatId(msg.getChatId()).isEmpty()) {
 
             var chatId = msg.getChatId();
             var chat = msg.getChat();
-
-            User user = new User();
-
-            user.setChatId(chatId);
-            user.setFirstName(chat.getFirstName());
-            user.setLastName(chat.getLastName());
-
             String userName = chat.getUserName();
 
             //тут нужно проверить NPE, потому что userName может прийти пустой
             try {
-                if (userName.isEmpty()) userName = chat.getFirstName()+" "+msg.getChatId().toString();
-            }
-            catch (Exception e) {
+                if (userName.isEmpty()) userName = chat.getFirstName() + " " + msg.getChatId().toString();
+            } catch (Exception e) {
                 log.error(ERROR_TEXT + e.getMessage());
-                userName = chat.getFirstName()+msg.getChatId().toString();
+                userName = chat.getFirstName() + msg.getChatId().toString();
             }
 
-            user.setUserName(userName);
-            user.setCreatedTime(msg.getDate().toString());
+            User user = new User(chatId, chat.getFirstName(), chat.getLastName(), userName);
 
             userRepository.save(user);
             log.info("User saved: " + user);
@@ -386,7 +395,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     // Проверяем наличие юзера в бд. Предлагаем выбрать режим игры или завершить/продолжить новую
     private void playCommandReceived(long chatId, String userName) {
 
-        if(userRepository.findByChatId(chatId).isPresent()) {
+        if (userRepository.findByChatId(chatId).isPresent()) {
 
             SendMessage message = new SendMessage();
             message.setChatId(String.valueOf(chatId));
@@ -394,18 +403,30 @@ public class TelegramBot extends TelegramLongPollingBot {
             if (!combatService.hasUserActiveSession(userName)) {
 
                 message.setText("Выберите режим игры");
-                setInlineKeyboard(message, "Онлайн", "Онлайн", "Оффлайн", "Оффлайн");
+
+                HashMap<String, String> buttons = new HashMap<>();
+                buttons.put(ONLINE, ONLINE);
+                buttons.put(OFFLINE, OFFLINE);
+                setInlineKeyboard(message, buttons);
+
                 executeMessage(message);
 
             } else {
 
+                HashMap<String, String> buttons = new HashMap<>();
+                buttons.put(YES, "NEW_SESSION_YES");
+                buttons.put(NO, "NEW_SESSION_NO");
+                setInlineKeyboard(message, buttons);
+
                 message.setText("У Вас имеется активная сессия. Желаете завершить её и начать новую?");
-                setInlineKeyboard(message, YES, "NEW_SESSION_YES", NO, "NEW_SESSION_NO");
+
                 executeMessage(message);
             }
         }
         // Если пользователь не найден в бд, то сообщаем ему об этом
-        else {sendZeroRegistrationMessage(chatId);}
+        else {
+            sendZeroRegistrationMessage(chatId);
+        }
     }
 
     // Спрашиваем у пользователя готов ли он начать Оффлайн игру
@@ -415,7 +436,10 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
         message.setText("Готовы начать битву?");
 
-        setInlineKeyboard(message, YES, PLAY_OFFLINE_YES, NO, PLAY_OFFLINE_NO); // Возможно стоит отправку сообщения с клавиатурой в единую функцию объединить
+        HashMap<String, String> buttons = new HashMap<>();
+        buttons.put(YES, PLAY_OFFLINE_YES);
+        buttons.put(NO, PLAY_OFFLINE_NO);
+        setInlineKeyboard(message, buttons); // Возможно стоит отправку сообщения с клавиатурой в единую функцию объединить
 
         executeMessage(message);
     }
@@ -427,7 +451,11 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
         message.setText("Выберите направления для атаки и защиты");
 
-        setReplyKeyboard(message, ATTACK, DEFENSE);
+        ArrayList<String> keys = new ArrayList<>();
+        keys.add(ATTACK);
+        keys.add(DEFENSE);
+
+        setReplyKeyboard(message, keys);
 
         executeMessage(message);
     }
@@ -449,7 +477,12 @@ public class TelegramBot extends TelegramLongPollingBot {
             combatService.updateSession(DEFENSE, userName);
         }
 
-        setReplyKeyboard(message, HEAD, BODY, FOOT);
+        ArrayList<String> keys = new ArrayList<>();
+        keys.add(HEAD);
+        keys.add(BODY);
+        keys.add(FOOT);
+
+        setReplyKeyboard(message, keys);
         executeMessage(message);
     }
 
@@ -470,7 +503,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
         }
 
-        if (combatService.getPlayerStatus(userName).equals("ready")) {
+        if (combatService.getPlayerStatus(userName).equals(P_READY)) {
             sendAttackDefenseReadyChoose(chatId, userName);
         }
         else
@@ -484,7 +517,12 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
         message.setText("Нажмите \"Готов\", если сделали окончательный выбор");
 
-        setReplyKeyboard(message, ATTACK, DEFENSE, "Готов");
+        ArrayList<String> keys = new ArrayList<>();
+        keys.add(ATTACK);
+        keys.add(DEFENSE);
+        keys.add(READY);
+
+        setReplyKeyboard(message, keys);
 
         executeMessage(message);
 
@@ -502,7 +540,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         combatService.updateSession("block", userName);
 
         // Уже оба игрока подтвердили готовность? Если да, то статус сессии должен быть "doAction" (==true)
-        if (combatService.getSessionStatus(userName).equals("doAction")) {
+        if (combatService.getSessionStatus(userName).equals(DO_ACTION)) {
 
             // Активируем подсчёт раунда, получаем результат раунда по игроку, отправляем результат игроку
             message.setText(combatService.combatResult(userName));
@@ -520,7 +558,11 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 // Предлагаем пользователю сыграть снова
                 message.setText("Нажмите /play, чтобы сыграть снова!");
-                setReplyKeyboard(message, "/play", "/play");
+
+                ArrayList<String> keys = new ArrayList<>();
+                keys.add("/play");
+
+                setReplyKeyboard(message, keys);
                 executeMessage(message);
             }
         }
@@ -529,11 +571,15 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (combatService.hasUserActiveSession(userName)) {
 
             // Пользователь находится в состоянии ожидания? Если да, то у него должен быть статус "block"
-            if (combatService.getPlayerStatus(userName).equals("block")) {
+            if (combatService.getPlayerStatus(userName).equals(P_BLOCK)) {
 
                 // Предлагаем пользователю нажимать на кнопку, чтобы получить результаты раунда (после готовности соперника)
                 message.setText("Ваш выбор зафиксирован, ожидаем ход соперника");
-                setReplyKeyboard(message, "Обновить", "Обновить");
+
+                ArrayList<String> keys = new ArrayList<>();
+                keys.add(REFRESH);
+
+                setReplyKeyboard(message, keys);
                 executeMessage(message);
             }
         }
@@ -546,18 +592,22 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
 
         // Готовы ли результаты раунда? Если да, то статус игрока будет "resultReady"
-        if (combatService.getPlayerStatus(userName).equals("resultReady")) {
+        if (combatService.getPlayerStatus(userName).equals(RESULT_READY)) {
 
             // Отправляем пользователю результаты последнего раунда
             message.setText(combatService.getPlayerMessageAndRefreshStatus(userName));
             executeMessage(message);
 
             // Был ли раунд финальным? Если да, то статус сессии должен быть "block"
-            if (combatService.getSessionStatus(userName).equals("block")) {
+            if (combatService.getSessionStatus(userName).equals(S_BLOCK)) {
 
                 // Предлагаем пользователю сыграть снова
                 message.setText("Нажмите /play, чтобы сыграть снова!");
-                setReplyKeyboard(message, "/play", "/play");
+
+                ArrayList<String> keys = new ArrayList<>();
+                keys.add("/play");
+
+                setReplyKeyboard(message, keys);
                 executeMessage(message);
 
                 // Полностью удаляем игровую сессию
@@ -577,7 +627,11 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             // Предлагаем пользователю нажимать на кнопку, чтобы получить результаты раунда (после готовности соперника)
             message.setText("Соперник скрылся! Приготовьтесь к внезапной атаке!");
-            setReplyKeyboard(message, "Обновить", "Обновить");
+
+            ArrayList<String> keys = new ArrayList<>();
+            keys.add(REFRESH);
+
+            setReplyKeyboard(message, keys);
             executeMessage(message);
         }
     }
@@ -587,7 +641,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         var playerStatus = combatService.getPlayerStatus(userName);
 
-        if (playerStatus.equals("empty") || playerStatus.equals("waitDefense") || playerStatus.equals("waitAttack")) {
+        if (playerStatus.equals(P_EMPTY) || playerStatus.equals(WAIT_DEFENCE) || playerStatus.equals(WAIT_ATTACK)) {
 
         }
 
@@ -603,8 +657,10 @@ public class TelegramBot extends TelegramLongPollingBot {
             message.setChatId(String.valueOf(chatId));
             message.setText("Вы действительно хотите удалить данные?");
 
-            // Прикрепляем кнопки Да/Нет
-            setInlineKeyboard(message, YES, REG_YES, NO, REG_NO);
+            HashMap<String, String> buttons = new HashMap<>();
+            buttons.put(YES, REG_YES);
+            buttons.put(NO, REG_NO);
+            setInlineKeyboard(message, buttons); // Прикрепляем кнопки Да/Нет
 
             executeMessage(message);
         }
@@ -635,7 +691,10 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setChatId(String.valueOf(chatId));
         message.setText(textToSend);
 
-        setReplyKeyboard(message, "Онлайн", "Онлайн");
+        ArrayList<String> keys = new ArrayList<>();
+        keys.add(ONLINE);
+
+        setReplyKeyboard(message, keys);
 
         executeMessage(message);
     }
@@ -658,32 +717,27 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     // Устанавливаем сообщению клавиатуру с двумя Inline-кнопками
-    public void setInlineKeyboard(SendMessage message, String text1, String callbackData1, String text2, String callbackData2) {
+    public void setInlineKeyboard(SendMessage message, HashMap<String, String> buttons) {
 
         InlineKeyboardMarkup markupInLine = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rowsInLine = new ArrayList<>();
         List<InlineKeyboardButton> rowInLine = new ArrayList<>();
-        var firstButton = new InlineKeyboardButton();
 
-        firstButton.setText(text1);
-        firstButton.setCallbackData(callbackData1);
-
-        var secondButton = new InlineKeyboardButton();
-
-        secondButton.setText(text2);
-        secondButton.setCallbackData(callbackData2);
-
-        rowInLine.add(firstButton);
-        rowInLine.add(secondButton);
+        for (String buttonText : buttons.keySet()) {
+            String callbackData = buttons.get(buttonText);
+            var newButton = new InlineKeyboardButton();
+            newButton.setText(buttonText);
+            newButton.setCallbackData(callbackData);
+            rowInLine.add(newButton);
+        }
 
         rowsInLine.add(rowInLine);
-
         markupInLine.setKeyboard(rowsInLine);
         message.setReplyMarkup(markupInLine);
     }
 
-    // Устанавливаем сообщению клавиатуру с тремя Reply-кнопками
-    public void setReplyKeyboard(SendMessage message, String key1, String key2, String key3) { //Можно ли передать сюда лист из ключей?
+    // Устанавливаем сообщению клавиатуру с Reply-кнопками
+    public void setReplyKeyboard(SendMessage message, ArrayList<String> buttons) {
 
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
 
@@ -691,12 +745,13 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         KeyboardRow row = new KeyboardRow();
 
-        row.add(key1);
-        row.add(key2);
-        row.add(key3);
+        for (String button : buttons) {
+            row.add(button);
+        }
 
         keyboardRows.add(row);
-    /*
+
+        /*
         row = new KeyboardRow();
 
         row.add("register");
@@ -704,25 +759,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         row.add("delete my data");
 
         keyboardRows.add(row);
-    */
-        keyboardMarkup.setKeyboard(keyboardRows);
-
-        message.setReplyMarkup(keyboardMarkup);
-    }
-
-    // Устанавливаем сообщению клавиатуру с двумя Reply-кнопками
-    public void setReplyKeyboard(SendMessage message, String key1, String key2) {
-
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-
-        List<KeyboardRow> keyboardRows = new ArrayList<>();
-
-        KeyboardRow row = new KeyboardRow();
-
-        row.add(key1);
-        row.add(key2);
-
-        keyboardRows.add(row);
+        */
 
         keyboardMarkup.setKeyboard(keyboardRows);
 
