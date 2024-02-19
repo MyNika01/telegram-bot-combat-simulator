@@ -2,6 +2,8 @@ package demo.telegrambotcombatsimulator.enums;
 
 import lombok.Getter;
 
+import java.util.Arrays;
+
 @Getter
 public enum DirectionStatusType {
     D_EMPTY(0),
@@ -17,10 +19,17 @@ public enum DirectionStatusType {
 
     public static DirectionStatusType getByOrder(int order) {
         for (var data : DirectionStatusType.values()) {
-            if (data.getOrder() == order){
+            if (data.getOrder() == order) {
                 return data;
             }
         }
         return D_EMPTY;
+    }
+
+    //пример getByOrder в stream варианте
+    public static DirectionStatusType getByOrderFunc(int order) {
+        return Arrays.stream(DirectionStatusType.values())
+                .filter(data -> data.getOrder() == order)
+                .findFirst().orElse(D_EMPTY);
     }
 }

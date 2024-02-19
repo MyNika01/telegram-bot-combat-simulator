@@ -24,6 +24,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static demo.telegrambotcombatsimulator.enums.PlayerStatusType.*;
 import static demo.telegrambotcombatsimulator.enums.SessionStatusType.DO_ACTION;
@@ -182,6 +183,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                 userName = chat.getFirstName() + msg.getChatId().toString();
             }
 
+            BiConsumer<Long, String> consumer = null;
+
             switch (messageText) {
 
                 // Регистрируем пользователя, отвечаем hello-сообщением и сообщением-подсказкой
@@ -228,17 +231,22 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 // Обрабатываем событие "Пользователь отправил сообщение - Готов"
                 case READY:
-                    sendOpponentWaitAndBlockUserChoose(chatId, userName);
+                    consumer = this::sendOpponentWaitAndBlockUserChoose;
                     break;
 
                 // Обрабатываем событие "Пользователь нажал Обновить"
                 case REFRESH:
-                    sendCombatResultOrRefresh(chatId, userName);
+                    consumer = this::sendCombatResultOrRefresh;
                     break;
 
                 // Отбивка на незнакомое сообщение/команду
                 default:
                     prepareAndSendMessage(chatId, "Вы отправили неизвестную или временно недоступную команду");
+            }
+
+            //Можно выполнить вызов методе где-то позже
+            if (consumer != null) {
+                consumer.accept(chatId, userName);
             }
         }
 
