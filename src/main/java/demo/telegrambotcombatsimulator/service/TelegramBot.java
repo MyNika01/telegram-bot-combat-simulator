@@ -3,7 +3,6 @@ package demo.telegrambotcombatsimulator.service;
 import com.vdurmont.emoji.EmojiParser;
 import demo.telegrambotcombatsimulator.config.BotConfig;
 import demo.telegrambotcombatsimulator.entity.User;
-import demo.telegrambotcombatsimulator.enums.SessionStatusType;
 import demo.telegrambotcombatsimulator.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
@@ -18,11 +18,9 @@ import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScope
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,13 +41,13 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     // Текст для ответа на запрос "/help"
     static final String HELP_TEXT =
-                    """
+            """
                     Вы можете выполнять команды из главного меню слева или набрав команду:
 
                     Введите /start, чтобы активировать бота;
 
                     Введите /play, чтобы запустить игровой режим;
-                    
+                                        
                     Введите /gamerules, чтобы ознакомиться с правилами игры;
 
                     Введите /mydata, чтобы просмотреть хранящиеся о Вас данные;
@@ -61,7 +59,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     // Текст для объяснения правил через "/gamerules"
     static final String RULES_TEXT =
-                    """
+            """
                     Цель игры - снижать здоровье соперника и не допускать потерю собственного здоровья.
                     Победителем будет считаться игрок, который в конце матча останется с ненулевым здоровьем.
                     Игроки начинают матч с 50 здоровья. Матч состоит из раундов.
@@ -72,11 +70,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                     Атака игрока считается успешной, если направлена на участок, который остался без защиты.
                     При успешной атаке игрок наносит соперника урон в 10 единиц здоровья.
                     Раунды повторяются до тех пор, пока какой-то игрок не остается с 0 единиц здоровья.
-                    
+                                        
                     Одновременно игрок может участвовать только в одном матче.
-                    
+                                        
                     Начать и выбрать формат игры (Онлайн/Оффлайн) - через команду /play.
-                    
+                                        
                     Удачи и весёлой игры!
                     """;
 
@@ -108,7 +106,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     static final String HEAD = "Голова";
 
     static final String BODY = "Туловище";
-    
+
     static final String FOOT = "Ноги";
 
     static final String CHOOSE_ATTACK = "Выберите направление атаки";
@@ -178,11 +176,10 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             //тут нужно проверить NPE, так как userName может не прийти
             try {
-                if (userName.isEmpty()) userName = chat.getFirstName()+" "+msg.getChatId().toString();
-            }
-            catch (Exception e) {
+                if (userName.isEmpty()) userName = chat.getFirstName() + " " + msg.getChatId().toString();
+            } catch (Exception e) {
                 log.error(ERROR_TEXT + e.getMessage());
-                userName = chat.getFirstName()+msg.getChatId().toString();
+                userName = chat.getFirstName() + msg.getChatId().toString();
             }
 
             switch (messageText) {
@@ -219,29 +216,14 @@ public class TelegramBot extends TelegramLongPollingBot {
                     prepareAndSendMessage(chatId, RULES_TEXT);
                     break;
 
-                // Обрабатываем событие "Пользователь отправил сообщение - Атака"
-                case ATTACK:
-                    sendHeadBodyFootChooseAndSetPlayerDirection(chatId, ATTACK, userName);
+                // Обрабатываем событие "Пользователь отправил сообщение - Защита, Атака"
+                case DEFENSE, ATTACK:
+                    sendHeadBodyFootChooseAndSetPlayerDirection(chatId, messageText, userName);
                     break;
 
-                // Обрабатываем событие "Пользователь отправил сообщение - Защита"
-                case DEFENSE:
-                    sendHeadBodyFootChooseAndSetPlayerDirection(chatId, DEFENSE, userName);
-                    break;
-
-                // Обрабатываем событие "Пользователь отправил сообщение - Голова"
-                case HEAD:
-                    setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, HEAD, userName);
-                    break;
-
-                // Обрабатываем событие "Пользователь отправил сообщение - Тело"
-                case BODY:
-                    setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, BODY, userName);
-                    break;
-
-                // Обрабатываем событие "Пользователь отправил сообщение - Ноги"
-                case FOOT:
-                    setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, FOOT, userName);
+                // Обрабатываем событие "Пользователь отправил сообщение - Ноги, Тело, Голова"
+                case FOOT, BODY, HEAD:
+                    setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, messageText, userName);
                     break;
 
                 // Обрабатываем событие "Пользователь отправил сообщение - Готов"
@@ -279,14 +261,14 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 // Обрабатываем событие "Пользователь нажал кнопку - Нет. Был вопрос (Do you really want to delete your data?)"
                 case REG_NO:
-                    String textREG_NO = "Ваши данные не изменены\n"+
+                    String textREG_NO = "Ваши данные не изменены\n" +
                             "Нажмите /mydata для проверки сохранённой информации";
                     executeEditMessageText(textREG_NO, chatId, messageId);
                     break;
 
                 // Обрабатываем событие "Пользователь нажал кнопку - Онлайн. Был вопрос (Выберите режим игры)"
                 case ONLINE:
-                    String textOnline = "Выбран режим игры - Онлайн\n"+
+                    String textOnline = "Выбран режим игры - Онлайн\n" +
                             "(В настоящее время режим Онлайн не доступен, прошу перейти в режим Оффлайн через /play)";
                     executeEditMessageText(textOnline, chatId, messageId);
                     break;
@@ -302,7 +284,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 // Обрабатываем событие "Пользователь нажал кнопку - Да. Был вопрос (Готовы начать битву?)"
                 case PLAY_OFFLINE_YES:
 
-                    String textPLAY_OFF_YES = "Ваш соперник - КоМпЬюТеР\n"+
+                    String textPLAY_OFF_YES = "Ваш соперник - КоМпЬюТеР\n" +
                             "Делайте первый ход (пользуйтесь кнопками встроенной клавиатуры)";
 
                     // Заботимся о том, чтобы не было дублирования сессии
@@ -311,8 +293,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                         do combatService.deleteUserSession(userName);
                         while (combatService.hasUserActiveSession(userName));
 
-                        textPLAY_OFF_YES = "Ваш соперник - КоМпЬюТеР\n"+
-                                "Делайте первый ход (пользуйтесь кнопками встроенной клавиатуры)\n"+
+                        textPLAY_OFF_YES = "Ваш соперник - КоМпЬюТеР\n" +
+                                "Делайте первый ход (пользуйтесь кнопками встроенной клавиатуры)\n" +
                                 "Ваши прошлые сессии удалены. Больше не ломайте бота!";
                     }
 
@@ -467,15 +449,9 @@ public class TelegramBot extends TelegramLongPollingBot {
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
 
-        if (answer.equals(ATTACK)) {
-            message.setText(CHOOSE_ATTACK);
-            combatService.updateSession(ATTACK, userName);
-        }
+        message.setText(CHOOSE_DEFENSE);
+        combatService.updateSession(answer, userName);
 
-        else if (answer.equals(DEFENSE)) {
-            message.setText(CHOOSE_DEFENSE);
-            combatService.updateSession(DEFENSE, userName);
-        }
 
         ArrayList<String> keys = new ArrayList<>();
         keys.add(HEAD);
@@ -490,23 +466,10 @@ public class TelegramBot extends TelegramLongPollingBot {
     // Если пользователь уже выбрал Атака и Защиту, то готовим сообщение с тремя кнопками - Атака, Защита и Готов
     // В противном случае готовим кнопки - Атака и Защита
     private void setPlayerDirectionAndPrepareAttackDefenseChoose(long chatId, String answer, String userName) {
-
-        switch (answer) {
-            case HEAD -> {
-                combatService.updateSession(HEAD, userName);
-            }
-            case BODY -> {
-                combatService.updateSession(BODY, userName);
-            }
-            case FOOT -> {
-                combatService.updateSession(FOOT, userName);
-            }
-        }
-
+        combatService.updateSession(answer, userName);
         if (combatService.getPlayerStatus(userName).equals(P_READY)) {
             sendAttackDefenseReadyChoose(chatId, userName);
-        }
-        else
+        } else
             sendAttackDefenseChoose(chatId);
     }
 
@@ -637,7 +600,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     // todo Не обрабатывать команды пользователя, если они не совпадают с типом ожидаемого события. Сообщить об этом пользователю
-    private void sendActualGameMessage (long chatId, String userName) {
+    private void sendActualGameMessage(long chatId, String userName) {
 
         var playerStatus = combatService.getPlayerStatus(userName);
 
@@ -651,7 +614,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void deleteData(long chatId) {
 
         // Если пользователь существует в бд, то спрашиваем: "Удаляем или не удаляем данные?"
-        if(userRepository.findByChatId(chatId).isPresent()) {
+        if (userRepository.findByChatId(chatId).isPresent()) {
 
             SendMessage message = new SendMessage();
             message.setChatId(String.valueOf(chatId));
@@ -673,7 +636,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     private void showUserData(long chatId) {
 
         // Если пользователь имеется в бд, то показываем его данные
-        if(userRepository.findByChatId(chatId).isPresent()) {
+        if (userRepository.findByChatId(chatId).isPresent()) {
 
             var user = userRepository.findByChatId(chatId); // todo Тут читать про optional https://habr.com/ru/articles/658457/
             String answer = user.get().toString(); // todo Подумать - стоит ли добавлять проверку? Содержимое optional может быть пустым в моём случае?
@@ -702,13 +665,13 @@ public class TelegramBot extends TelegramLongPollingBot {
     // Отправить сообщение для пользователя без регистрации
     private void sendZeroRegistrationMessage(long chatId) {
 
-        String answer = "Вы не зарегистрированы, данные Вашего пользователя не найдены\n"+
+        String answer = "Вы не зарегистрированы, данные Вашего пользователя не найдены\n" +
                 "Чтобы получить доступ ко всем командам, нажмите /start для повторной регистрации";
         prepareAndSendMessage(chatId, answer);
     }
 
     // Готовим сообщение по ChatId и Text. Выполняем отправку через executeMessage
-    private void prepareAndSendMessage(long chatId, String textToSend){
+    private void prepareAndSendMessage(long chatId, String textToSend) {
 
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
@@ -767,7 +730,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     // Редактируем текст уже отправленного сообщения
-    private void executeEditMessageText(String text, long chatId, long messageId){
+    private void executeEditMessageText(String text, long chatId, long messageId) {
 
         EditMessageText message = new EditMessageText();
         message.setChatId(String.valueOf(chatId));
