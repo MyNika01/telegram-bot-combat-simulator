@@ -2,9 +2,9 @@ package demo.telegrambotcombatsimulator.service;
 
 import demo.telegrambotcombatsimulator.entity.Combat;
 import demo.telegrambotcombatsimulator.entity.Player;
+import demo.telegrambotcombatsimulator.enums.DirectionStatusType;
 import demo.telegrambotcombatsimulator.enums.PlayerStatusType;
 import demo.telegrambotcombatsimulator.enums.SessionStatusType;
-import demo.telegrambotcombatsimulator.enums.DirectionStatusType;
 import demo.telegrambotcombatsimulator.repository.CombatRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -23,10 +23,10 @@ public class CombatService {
     public static final int MAX_HP = 50;
 
     // Создаём сессию
-    public void createSession(String playerName, String sessionFormatOrSecondPlayerName) {
+    public void createSession(String playerName, String sessionFormat) {
 
         Combat combat;
-        if (sessionFormatOrSecondPlayerName.equals("offline")) {
+        if (sessionFormat.equals("offline")) {
 
             // Создаём офлайн сессию
             combat = new Combat(playerName, "Компьютер");
@@ -37,7 +37,7 @@ public class CombatService {
             // todo Продумать механизм объединения двух игроков в одну сессию
             // todo Обязательно! Проверить/предусмотреть одновременный сейв по одной записи
 
-            combat = new Combat(playerName, sessionFormatOrSecondPlayerName);
+            combat = new Combat(playerName);
 
         }
         combatRepository.save(combat);
@@ -52,16 +52,12 @@ public class CombatService {
         Player firstPlayer = combat.getFirstPlayer();
         Player secondPlayer = combat.getSecondPlayer();
 
-        // Player activePlayer = combat.getPlayerByName(playerName);
-
         var firstPlayerName = firstPlayer.getName();
         var secondPlayerName = secondPlayer.getName();
         var firstPlayerStatus = firstPlayer.getStatus();
         var secondPlayerStatus = secondPlayer.getStatus();
 
         if (!combat.getSessionStatus().equals(S_BLOCK)) {
-
-          //  Player activePlayer = combat.getPlayerByName(playerName);
 
             // В зависимости от события меняем статусы в сессии
             switch (action) {
@@ -86,17 +82,22 @@ public class CombatService {
 
                 // Указываем направление на Голову для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Голова" -> {
-                    if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_ATTACK)) {
-                        firstPlayer.setAttackDirection(HEAD);
+
+                    if (playerName.equals(firstPlayerName)) {
+                        if (firstPlayerStatus.equals(WAIT_ATTACK)) {
+                            firstPlayer.setAttackDirection(HEAD);
+                        } else if (firstPlayerStatus.equals(WAIT_DEFENCE)) {
+                            firstPlayer.setDefenseDirection(HEAD);
+                        }
                         firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_DEFENCE)) {
-                        firstPlayer.setDefenseDirection(HEAD);
-                        firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_ATTACK)) {
-                        secondPlayer.setAttackDirection(HEAD);
-                        secondPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_DEFENCE)) {
-                        secondPlayer.setDefenseDirection(HEAD);
+                    }
+
+                    if (playerName.equals(secondPlayerName)) {
+                        if (secondPlayerStatus.equals(WAIT_ATTACK)){
+                            secondPlayer.setAttackDirection(HEAD);
+                        } else if(secondPlayerStatus.equals(WAIT_DEFENCE)){
+                            secondPlayer.setDefenseDirection(HEAD);
+                        }
                         secondPlayer.setStatus(P_EMPTY);
                     }
                 }
@@ -113,7 +114,7 @@ public class CombatService {
                         secondPlayer.setAttackDirection(BODY);
                         secondPlayer.setStatus(P_EMPTY);
                     } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_DEFENCE)) {
-                        secondPlayer.setDefenseDirection(BODY);
+                        secondPlayer.setDefenseDirection(HEAD);
                         secondPlayer.setStatus(P_EMPTY);
                     }
                 }
@@ -195,30 +196,15 @@ public class CombatService {
     }
 
     // Через случайный выбор определяем игровые действия компьютера и обновляем статус второго игрока
-    public Player generateAndSetComputerDirection(Player player) {
-
+    public void generateAndSetComputerDirection(Player player) {
         // todo Протестировать рандом!
         int max = 3, min = 1;
-        int attackDirection = getRandomInt(max, min);
-        int defenseDirection = getRandomInt(max, min);
-
-        switch (attackDirection) {
-            case 1 -> player.setAttackDirection(HEAD);
-            case 2 -> player.setAttackDirection(BODY);
-            case 3 -> player.setAttackDirection(LEGS);
-        }
-
-        switch (defenseDirection) {
-            case 1 -> player.setDefenseDirection(HEAD);
-            case 2 -> player.setDefenseDirection(BODY);
-            case 3 -> player.setDefenseDirection(LEGS);
-        }
-
+        player.setAttackDirection(DirectionStatusType.getByOrder(getRandomInt(max, min)));
+        player.setDefenseDirection(DirectionStatusType.getByOrder(getRandomInt(max, min)));
         player.setStatus(P_BLOCK);
-        return player;
     }
 
-    protected int getRandomInt(int max, int min) {
+    protected static int getRandomInt(int max, int min) {
         return (int) (Math.random() * (max - min + 1)) + min;
     }
 
