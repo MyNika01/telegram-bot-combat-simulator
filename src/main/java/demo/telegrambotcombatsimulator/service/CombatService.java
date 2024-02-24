@@ -23,10 +23,10 @@ public class CombatService {
     public static final int MAX_HP = 50;
 
     // Создаём сессию
-    public void createSession(String playerName, String sessionFormat) {
+    public void createSession(String playerName, String sessionFormatOrSecondPlayerName) {
 
         Combat combat;
-        if (sessionFormat.equals("offline")) {
+        if (sessionFormatOrSecondPlayerName.equals("offline")) {
 
             // Создаём офлайн сессию
             combat = new Combat(playerName, "Компьютер");
@@ -37,7 +37,7 @@ public class CombatService {
             // todo Продумать механизм объединения двух игроков в одну сессию
             // todo Обязательно! Проверить/предусмотреть одновременный сейв по одной записи
 
-            combat = new Combat(playerName);
+            combat = new Combat(playerName, sessionFormatOrSecondPlayerName);
 
         }
         combatRepository.save(combat);
@@ -51,6 +51,8 @@ public class CombatService {
 
         Player firstPlayer = combat.getFirstPlayer();
         Player secondPlayer = combat.getSecondPlayer();
+
+        //todo activePlayer
 
         var firstPlayerName = firstPlayer.getName();
         var secondPlayerName = secondPlayer.getName();
