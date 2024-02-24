@@ -2,9 +2,9 @@ package demo.telegrambotcombatsimulator.service;
 
 import demo.telegrambotcombatsimulator.entity.Combat;
 import demo.telegrambotcombatsimulator.entity.Player;
+import demo.telegrambotcombatsimulator.enums.DirectionStatusType;
 import demo.telegrambotcombatsimulator.enums.PlayerStatusType;
 import demo.telegrambotcombatsimulator.enums.SessionStatusType;
-import demo.telegrambotcombatsimulator.enums.DirectionStatusType;
 import demo.telegrambotcombatsimulator.repository.CombatRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -82,17 +82,22 @@ public class CombatService {
 
                 // Указываем направление на Голову для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Голова" -> {
-                    if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_ATTACK)) {
-                        firstPlayer.setAttackDirection(HEAD);
+
+                    if (playerName.equals(firstPlayerName)) {
+                        if (firstPlayerStatus.equals(WAIT_ATTACK)) {
+                            firstPlayer.setAttackDirection(HEAD);
+                        } else if (firstPlayerStatus.equals(WAIT_DEFENCE)) {
+                            firstPlayer.setDefenseDirection(HEAD);
+                        }
                         firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_DEFENCE)) {
-                        firstPlayer.setDefenseDirection(HEAD);
-                        firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_ATTACK)) {
-                        secondPlayer.setAttackDirection(HEAD);
-                        secondPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_DEFENCE)) {
-                        secondPlayer.setDefenseDirection(HEAD);
+                    }
+
+                    if (playerName.equals(secondPlayerName)) {
+                        if (secondPlayerStatus.equals(WAIT_ATTACK)){
+                            secondPlayer.setAttackDirection(HEAD);
+                        } else if(secondPlayerStatus.equals(WAIT_DEFENCE)){
+                            secondPlayer.setDefenseDirection(HEAD);
+                        }
                         secondPlayer.setStatus(P_EMPTY);
                     }
                 }
@@ -192,30 +197,20 @@ public class CombatService {
 
     // Через случайный выбор определяем игровые действия компьютера и обновляем статус второго игрока
     public void generateAndSetComputerDirection(Player player) {
-
         // todo Протестировать рандом!
         int max = 3, min = 1;
-        int attackDirection = (int) (Math.random() * (max - min + 1)) + min;
-        int defenseDirection = (int) (Math.random() * (max - min + 1)) + min;
-
-        switch (attackDirection) {
-            case 1 -> player.setAttackDirection(HEAD);
-            case 2 -> player.setAttackDirection(BODY);
-            case 3 -> player.setAttackDirection(LEGS);
-        }
-
-        switch (defenseDirection) {
-            case 1 -> player.setDefenseDirection(HEAD);
-            case 2 -> player.setDefenseDirection(BODY);
-            case 3 -> player.setDefenseDirection(LEGS);
-        }
-
+        player.setAttackDirection(DirectionStatusType.getByOrder(getRandomInt(max, min)));
+        player.setDefenseDirection(DirectionStatusType.getByOrder(getRandomInt(max, min)));
         player.setStatus(P_BLOCK);
+    }
+
+    protected static int getRandomInt(int max, int min) {
+        return (int) (Math.random() * (max - min + 1)) + min;
     }
 
     // Подсчитываем результаты раунда
     // todo Вынести часто используемые параметры в начало
-    public String combatResult (String playerName) {
+    public String combatResult(String playerName) {
 
         Combat combat = combatRepository.getByPlayerName(playerName);
 
@@ -263,17 +258,17 @@ public class CombatService {
 
         // Формируем сообщение с результатом для первого игрока
         firstPlayer.setMessage(
-                "Соперник нанёс удар в "+transToRus(spAttack)+", а вы поставили защиту на "+transToRus(fpDefense)+"\n"+
-                        "Ваше здоровье "+fpHealth+"/"+MAX_HP+"\n"+
-                        "Вы нанесли удар в "+transToRus(fpAttack)+", а соперник поставил защиту на "+transToRus(spDefense)+"\n"+
-                        "Здоровье соперника "+spHealth+"/"+MAX_HP);
+                "Соперник нанёс удар в " + transToRus(spAttack) + ", а вы поставили защиту на " + transToRus(fpDefense) + "\n" +
+                        "Ваше здоровье " + fpHealth + "/" + MAX_HP + "\n" +
+                        "Вы нанесли удар в " + transToRus(fpAttack) + ", а соперник поставил защиту на " + transToRus(spDefense) + "\n" +
+                        "Здоровье соперника " + spHealth + "/" + MAX_HP);
 
         // Формируем сообщение с результатом для второго игрока
         secondPlayer.setMessage(
-                "Соперник нанёс удар в "+transToRus(fpAttack)+", а вы поставили защиту на "+transToRus(spDefense)+"\n"+
-                        "Ваше здоровье "+spHealth+"/"+MAX_HP+"\n"+
-                        "Вы нанесли удар в "+transToRus(spAttack)+", а соперник поставил защиту на "+transToRus(fpDefense)+"\n"+
-                        "Здоровье соперника "+fpHealth+"/"+MAX_HP);
+                "Соперник нанёс удар в " + transToRus(fpAttack) + ", а вы поставили защиту на " + transToRus(spDefense) + "\n" +
+                        "Ваше здоровье " + spHealth + "/" + MAX_HP + "\n" +
+                        "Вы нанесли удар в " + transToRus(spAttack) + ", а соперник поставил защиту на " + transToRus(fpDefense) + "\n" +
+                        "Здоровье соперника " + fpHealth + "/" + MAX_HP);
 
         // Возвращаем статус сессии на Подготовка
         combat.setSessionStatus(ACTION_PREPARE);
@@ -378,7 +373,7 @@ public class CombatService {
     }
 
     // Перевести ключевые слова с английского на русский
-    private String transToRus (DirectionStatusType engWord) {
+    private String transToRus(DirectionStatusType engWord) {
         switch (engWord) {
             case HEAD -> {
                 return "голову";
@@ -396,17 +391,17 @@ public class CombatService {
     }
 
     // Проверяем существует ли активная сессия у пользователя
-    public boolean hasUserActiveSession (String playerName) {
+    public boolean hasUserActiveSession(String playerName) {
         return combatRepository.findByPlayerName(playerName).isPresent();
     }
 
     // Удаляем сессию пользователя
-    public void deleteUserSession (String playerName) {
+    public void deleteUserSession(String playerName) {
         combatRepository.deleteByPlayerName(playerName);
     }
 
     // Отдаём результат последнего раунда пользователю
-    public String getLastPlayerChoose (String playerName) {
+    public String getLastPlayerChoose(String playerName) {
 
         Combat combat = combatRepository.getByPlayerName(playerName);
         Player firstPlayer = combat.getFirstPlayer();
@@ -416,8 +411,7 @@ public class CombatService {
 
             return "Ваш последний выбор: атака - в " + transToRus(firstPlayer.getAttackDirection()) +
                     ", защита - на " + transToRus(firstPlayer.getDefenseDirection());
-        }
-        else {
+        } else {
 
             return "Ваш последний выбор: атака - в " + transToRus(secondPlayer.getAttackDirection()) +
                     ", защита - на " + transToRus(secondPlayer.getDefenseDirection());
