@@ -11,6 +11,10 @@ public record User (Long chatId, String firstName, String lastName, String userN
     public User (Long chatId, String firstName, String lastName, String userName) {
         this (chatId, firstName, lastName, userName, LocalDateTime.now());
     }
+
+    public User (Long chatId, String userName) {
+        this (chatId, null, null, userName, LocalDateTime.now());
+    }
     public String toString() {
         return "Пользователь " + userName + "\n" +
                 "[Номер чата: " + chatId +

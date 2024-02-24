@@ -10,7 +10,7 @@ import java.util.UUID;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends MongoRepository <User, UUID> {
+public interface UserRepository extends MongoRepository<User, UUID> {
 
     @Query("{chatId :?0}")
     Optional <User> findByChatId(long chatId);
