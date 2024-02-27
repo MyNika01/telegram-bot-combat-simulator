@@ -35,7 +35,7 @@ public class QueueService {
     }
 
     @Scheduled(cron = "*/10 * * * * *")
-    public void matchOpponents () {
+    public void matchOpponents() {
 
         while (playersQueue.size() >= 2) {
 
@@ -53,8 +53,6 @@ public class QueueService {
             messagesQueue.add(secondEntry.getKey());
         }
     }
-
-
 
 
 }

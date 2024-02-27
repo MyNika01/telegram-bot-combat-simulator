@@ -97,6 +97,8 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     static final String PLAY_ONLINE_YES = "PLAY_ONLINE_YES";
 
+    static final String PLAY_FRIEND_YES = "PLAY_FRIEND_YES";
+
     // Константа NO под текстовое наполнение кнопки
     static final String NO = "Нет";
 
@@ -126,6 +128,8 @@ public class TelegramBot extends TelegramLongPollingBot {
     static final String ONLINE = "Онлайн";
 
     static final String OFFLINE = "Оффлайн";
+
+    static final String FRIEND = "С другом";
 
     static final String REFRESH = "Обновить";
 
@@ -233,12 +237,10 @@ public class TelegramBot extends TelegramLongPollingBot {
                     sendHeadBodyFootChooseAndSetPlayerDirection(chatId, messageText, userName);
                     break;
 
-
                 // Обрабатываем событие "Пользователь отправил сообщение - Голова"
                 case HEAD, BODY, FOOT:
                     setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, messageText, userName);
                     break;
-
 
                 // Обрабатываем событие "Пользователь отправил сообщение - Готов"
                 case READY:
@@ -281,19 +283,11 @@ public class TelegramBot extends TelegramLongPollingBot {
                     break;
 
                 // Обрабатываем событие "Пользователь нажал кнопку - Онлайн. Был вопрос (Выберите режим игры)"
-                case ONLINE:
-                    String textOnline = "Выбран режим игры - Онлайн\n" +
-                            "(В настоящее время режим Онлайн не доступен, прошу перейти в режим Оффлайн через /play)";
-                    executeEditMessageText(textOnline, chatId, messageId);
-                    checkReadiness(chatId, ONLINE);
-                    break;
-
-                // Обрабатываем событие "Пользователь нажал кнопку - Оффлайн. Был вопрос (Выберите режим игры)"
                 // todo переименовать Онлайн и Оффлайн на Против игрока и Против компьютера(?)
-                case OFFLINE:
-                    String textOffline = "Выбран режим игры - Оффлайн";
-                    executeEditMessageText(textOffline, chatId, messageId);
-                    checkReadiness(chatId, OFFLINE);
+                case ONLINE, FRIEND, OFFLINE:
+                    String text= "Выбран режим игры: " + callbackData;
+                    executeEditMessageText(text, chatId, messageId);
+                    checkReadiness(chatId, callbackData);
                     break;
 
                 // Обрабатываем событие "Пользователь нажал кнопку - Да. Был вопрос (Готовы начать битву?)"
@@ -324,6 +318,18 @@ public class TelegramBot extends TelegramLongPollingBot {
                             "Вы получите сообщение о начале битвы. Будьте готовы!";
 
                     executeEditMessageText(PLAY_ON_YES, chatId, messageId);
+
+                    //добавляем юзера в очередь на поиск матча
+                    queueService.addToPlayersQueue(chatId, userName);
+
+                    break;
+
+                case PLAY_FRIEND_YES:
+
+                    String PLAY_FR_YES = "В ответ укажите никнейм друга (через @)\n" +
+                            "Друг обязательно должен пройти авторизацию в боте";
+
+                    executeEditMessageText(PLAY_FR_YES, chatId, messageId);
 
                     //добавляем юзера в очередь на поиск матча
                     queueService.addToPlayersQueue(chatId, userName);
@@ -415,6 +421,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 HashMap<String, String> buttons = new HashMap<>();
                 buttons.put(ONLINE, ONLINE);
+                buttons.put(FRIEND, FRIEND);
                 buttons.put(OFFLINE, OFFLINE);
                 setInlineKeyboard(message, buttons);
 
@@ -446,10 +453,15 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         HashMap<String, String> buttons = new HashMap<>();
 
-        if (format.equals(OFFLINE)) buttons.put(YES, PLAY_OFFLINE_YES);
-        else buttons.put(YES, PLAY_ONLINE_YES);
+        switch (format) {
+
+            case OFFLINE -> buttons.put(YES, PLAY_OFFLINE_YES);
+            case ONLINE -> buttons.put(YES, PLAY_ONLINE_YES);
+            case FRIEND -> buttons.put(YES, PLAY_FRIEND_YES);
+        }
 
         buttons.put(NO, PLAY_NO);
+
         setInlineKeyboard(message, buttons); // Возможно стоит отправку сообщения с клавиатурой в единую функцию объединить
 
         executeMessage(message);
@@ -642,7 +654,6 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (playerStatus.equals(P_EMPTY) || playerStatus.equals(WAIT_DEFENCE) || playerStatus.equals(WAIT_ATTACK)) {
 
         }
-
     }
 
     private void sendGameInvite(long chatId, String userName) {

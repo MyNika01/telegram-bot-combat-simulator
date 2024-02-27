@@ -21,7 +21,7 @@ public class Player {
     private PlayerStatusType status;
     private String message;
 
-    public Player () {
+    public Player() {
         this.name = "empty";
         this.health = MAX_HP;
         this.attackDirection = D_EMPTY;
@@ -30,8 +30,11 @@ public class Player {
         this.message = "empty";
     }
 
-    public Player (String name) {
-        this();
-        this.name = name;
+    public void setMessageAsBattleResult(String enemyPlayerAttack, String playerDefense, String playerAttack, String enemyPlayerDefense, int playerHealth, int enemyHealth) {
+
+        this.message = "Соперник нанёс удар в " + enemyPlayerAttack + ", а вы поставили защиту на " + playerDefense + "\n" +
+                "Ваше здоровье " + playerHealth + "/" + MAX_HP + "\n" +
+                "Вы нанесли удар в " + playerAttack + ", а соперник поставил защиту на " + enemyPlayerDefense + "\n" +
+                "Здоровье соперника " + enemyHealth + "/" + MAX_HP;
     }
 }

@@ -49,15 +49,11 @@ public class CombatService {
 
         Combat combat = combatRepository.getByPlayerName(playerName);
 
-        Player firstPlayer = combat.getFirstPlayer();
-        Player secondPlayer = combat.getSecondPlayer();
+        var firstPlayer = combat.getFirstPlayer();
+        var secondPlayer = combat.getSecondPlayer();
+        var activePlayer = playerName.equals(firstPlayer.getName()) ? firstPlayer : secondPlayer;
 
-        //todo activePlayer
-
-        var firstPlayerName = firstPlayer.getName();
-        var secondPlayerName = secondPlayer.getName();
-        var firstPlayerStatus = firstPlayer.getStatus();
-        var secondPlayerStatus = secondPlayer.getStatus();
+        var activePlayerStatus = activePlayer.getStatus();
 
         if (!combat.getSessionStatus().equals(S_BLOCK)) {
 
@@ -65,121 +61,59 @@ public class CombatService {
             switch (action) {
 
                 // Меняем статус игрока на "Ожидаем выбор направления атаки"
-                case "Атака" -> {
-                    if (playerName.equals(firstPlayerName)) {
-                        firstPlayer.setStatus(WAIT_ATTACK);
-                    } else if (playerName.equals(secondPlayerName)) {
-                        secondPlayer.setStatus(WAIT_ATTACK);
-                    }
-                }
+                case "Атака" -> activePlayer.setStatus(WAIT_ATTACK);
 
                 // Меняем статус игрока на "Ожидаем выбор направления защиты"
-                case "Защита" -> {
-                    if (playerName.equals(firstPlayerName)) {
-                        firstPlayer.setStatus(WAIT_DEFENCE);
-                    } else if (playerName.equals(secondPlayerName)) {
-                        secondPlayer.setStatus(WAIT_DEFENCE);
-                    }
-                }
+                case "Защита" -> activePlayer.setStatus(WAIT_DEFENCE);
 
                 // Указываем направление на Голову для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Голова" -> {
 
-                    if (playerName.equals(firstPlayerName)) {
-                        if (firstPlayerStatus.equals(WAIT_ATTACK)) {
-                            firstPlayer.setAttackDirection(HEAD);
-                        } else if (firstPlayerStatus.equals(WAIT_DEFENCE)) {
-                            firstPlayer.setDefenseDirection(HEAD);
-                        }
-                        firstPlayer.setStatus(P_EMPTY);
+                    if (activePlayerStatus.equals(WAIT_ATTACK)) {
+                        activePlayer.setAttackDirection(HEAD);
+                    } else if (activePlayerStatus.equals(WAIT_DEFENCE)) {
+                        activePlayer.setDefenseDirection(HEAD);
                     }
-
-                    if (playerName.equals(secondPlayerName)) {
-                        if (secondPlayerStatus.equals(WAIT_ATTACK)){
-                            secondPlayer.setAttackDirection(HEAD);
-                        } else if(secondPlayerStatus.equals(WAIT_DEFENCE)){
-                            secondPlayer.setDefenseDirection(HEAD);
-                        }
-                        secondPlayer.setStatus(P_EMPTY);
-                    }
+                    activePlayer.setStatus(P_EMPTY);
                 }
 
                 // Указываем направление на Тело для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Туловище" -> {
-                    if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_ATTACK)) {
-                        firstPlayer.setAttackDirection(BODY);
-                        firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_DEFENCE)) {
-                        firstPlayer.setDefenseDirection(BODY);
-                        firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_ATTACK)) {
-                        secondPlayer.setAttackDirection(BODY);
-                        secondPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_DEFENCE)) {
-                        secondPlayer.setDefenseDirection(HEAD);
-                        secondPlayer.setStatus(P_EMPTY);
+
+                    if (activePlayerStatus.equals(WAIT_ATTACK)) {
+                        activePlayer.setAttackDirection(BODY);
+                    } else if (activePlayerStatus.equals(WAIT_DEFENCE)) {
+                        activePlayer.setDefenseDirection(BODY);
                     }
+                    activePlayer.setStatus(P_EMPTY);
                 }
 
                 // Указываем направление на Ноги для Атаки/Защиты (зависит от последнего значения статуса игрока)
                 case "Ноги" -> {
-                    if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_ATTACK)) {
 
-                        firstPlayer.setAttackDirection(LEGS);
-                        firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(firstPlayerName) && firstPlayerStatus.equals(WAIT_DEFENCE)) {
-                        firstPlayer.setDefenseDirection(LEGS);
-                        firstPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_ATTACK)) {
-                        secondPlayer.setAttackDirection(LEGS);
-                        secondPlayer.setStatus(P_EMPTY);
-                    } else if (playerName.equals(secondPlayerName) && secondPlayerStatus.equals(WAIT_DEFENCE)) {
-                        secondPlayer.setDefenseDirection(LEGS);
-                        secondPlayer.setStatus(P_EMPTY);
+                    if (activePlayerStatus.equals(WAIT_ATTACK)) {
+                        activePlayer.setAttackDirection(LEGS);
+                    } else if (activePlayerStatus.equals(WAIT_DEFENCE)) {
+                        activePlayer.setDefenseDirection(LEGS);
                     }
+                    activePlayer.setStatus(P_EMPTY);
                 }
 
                 // Блокируем статус игрока, так как он сообщил о своей готовности. В этом случае нельзя менять выбор направлений!
-                case "block" -> {
-                    if (playerName.equals(firstPlayerName)) {
-                        firstPlayer.setStatus(P_BLOCK);
-                    } else if (playerName.equals(secondPlayerName)) {
-                        secondPlayer.setStatus(P_BLOCK);
-                    }
-                }
+                case "block" -> activePlayer.setStatus(P_BLOCK);
             }
 
-            // Если пользователь сделал выбор Атаки и Защиты, то ставим статус ready
-            // Этот статус позволяет определить, что пользователю нужно отправить кнопку Готов
-            if ((firstPlayer.getAttackDirection().equals(HEAD) ||
-                    firstPlayer.getAttackDirection().equals(BODY) ||
-                    firstPlayer.getAttackDirection().equals(LEGS)) &&
-                    (firstPlayer.getDefenseDirection().equals(HEAD) ||
-                            firstPlayer.getDefenseDirection().equals(BODY) ||
-                            firstPlayer.getDefenseDirection().equals(LEGS)) &&
-                    firstPlayer.getStatus().equals(P_EMPTY)
-            ) {
-                firstPlayer.setStatus(P_READY);
-            }
-
-            // Аналогичная проверка для второго игрока
-            if ((secondPlayer.getAttackDirection().equals(HEAD) ||
-                    secondPlayer.getAttackDirection().equals(BODY) ||
-                    secondPlayer.getAttackDirection().equals(LEGS)) &&
-                    (secondPlayer.getDefenseDirection().equals(HEAD) ||
-                            secondPlayer.getDefenseDirection().equals(BODY) ||
-                            secondPlayer.getDefenseDirection().equals(LEGS)) &&
-                    secondPlayer.getStatus().equals(P_EMPTY)
-            ) {
-                secondPlayer.setStatus(P_READY);
-            }
+            if ((activePlayer.getAttackDirection().equals(HEAD) || activePlayer.getAttackDirection().equals(BODY) || activePlayer.getAttackDirection().equals(LEGS)) &&
+                    (activePlayer.getDefenseDirection().equals(HEAD) || activePlayer.getDefenseDirection().equals(BODY) || activePlayer.getDefenseDirection().equals(LEGS)) &&
+                    activePlayer.getStatus().equals(P_EMPTY)
+            ) activePlayer.setStatus(P_READY);
 
             // Если противник - Компьютер, то генерируем направления и ставим статус второму игроку
-            if (secondPlayerName.equals("Компьютер") && secondPlayer.getStatus().equals(P_EMPTY)) {
+            if (secondPlayer.getName().equals("Компьютер") && secondPlayer.getStatus().equals(P_EMPTY)) {
                 generateAndSetComputerDirection(secondPlayer);
             }
 
-            // Если противник - Компьютер, то генерируем направления и ставим статус второму игроку
+            // Если оба игрока готовы, то переводим сессию в DO_ACTION
             if (firstPlayer.getStatus().equals(P_BLOCK) && secondPlayer.getStatus().equals(P_BLOCK)) {
                 combat.setSessionStatus(DO_ACTION);
             }
@@ -259,18 +193,10 @@ public class CombatService {
         secondPlayer.setDefenseDirection(D_EMPTY);
 
         // Формируем сообщение с результатом для первого игрока
-        firstPlayer.setMessage(
-                "Соперник нанёс удар в " + transToRus(spAttack) + ", а вы поставили защиту на " + transToRus(fpDefense) + "\n" +
-                        "Ваше здоровье " + fpHealth + "/" + MAX_HP + "\n" +
-                        "Вы нанесли удар в " + transToRus(fpAttack) + ", а соперник поставил защиту на " + transToRus(spDefense) + "\n" +
-                        "Здоровье соперника " + spHealth + "/" + MAX_HP);
+        firstPlayer.setMessageAsBattleResult(transToRus(spAttack), transToRus(fpDefense), transToRus(fpAttack), transToRus(spDefense), fpHealth, spHealth);
 
         // Формируем сообщение с результатом для второго игрока
-        secondPlayer.setMessage(
-                "Соперник нанёс удар в " + transToRus(fpAttack) + ", а вы поставили защиту на " + transToRus(spDefense) + "\n" +
-                        "Ваше здоровье " + spHealth + "/" + MAX_HP + "\n" +
-                        "Вы нанесли удар в " + transToRus(spAttack) + ", а соперник поставил защиту на " + transToRus(fpDefense) + "\n" +
-                        "Здоровье соперника " + fpHealth + "/" + MAX_HP);
+        secondPlayer.setMessageAsBattleResult(transToRus(fpAttack), transToRus(spDefense), transToRus(spAttack), transToRus(fpDefense), spHealth, fpHealth);
 
         // Возвращаем статус сессии на Подготовка
         combat.setSessionStatus(ACTION_PREPARE);
@@ -301,11 +227,11 @@ public class CombatService {
             // Формируем финальное сообщение в зависимости от результата
             if (spHealth == 0 && fpHealth != 0) {
 
-                secondPlayer.setMessage(secondPlayer.getMessage() + "\n" +
-                        "Ваше сражение окончено - соперник одержал победу");
-
                 firstPlayer.setMessage(firstPlayer.getMessage() + "\n" +
                         "Ваше сражение окончено - соперник разгромлен!");
+
+                secondPlayer.setMessage(secondPlayer.getMessage() + "\n" +
+                        "Ваше сражение окончено - соперник одержал победу");
             }
 
             // Формируем финальное сообщение в зависимости от результата

@@ -15,9 +15,9 @@ public interface CombatRepository extends MongoRepository<Combat, UUID> {
     Combat getByPlayerName(String playerName);
 
     @Query("{ $or: [ {\"firstPlayer.name\": ?0}, {\"secondPlayer.name\": ?0} ] }")
-    Optional <Combat> findByPlayerName(String playerName);
+    Optional<Combat> findByPlayerName(String playerName);
 
-    @Query(value="{ $or: [ {\"firstPlayer.name\": ?0}, {\"secondPlayer.name\": ?0} ] }", delete = true)
+    @Query(value = "{ $or: [ {\"firstPlayer.name\": ?0}, {\"secondPlayer.name\": ?0} ] }", delete = true)
     void deleteByPlayerName(String playerName);
 
 }

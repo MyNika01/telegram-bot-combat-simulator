@@ -13,9 +13,9 @@ import java.util.Optional;
 public interface UserRepository extends MongoRepository<User, UUID> {
 
     @Query("{chatId :?0}")
-    Optional <User> findByChatId(long chatId);
+    Optional<User> findByChatId(long chatId);
 
-    @Query(value="{'chatId' : ?0}", delete = true)
+    @Query(value = "{'chatId' : ?0}", delete = true)
     void deleteByChatId(long chatId);
 
 //    @DeleteQuery
