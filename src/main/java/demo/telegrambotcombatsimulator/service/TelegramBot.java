@@ -1,9 +1,7 @@
 package demo.telegrambotcombatsimulator.service;
 
-import com.vdurmont.emoji.EmojiParser;
 import demo.telegrambotcombatsimulator.config.BotConfig;
 import demo.telegrambotcombatsimulator.entity.User;
-import demo.telegrambotcombatsimulator.enums.SessionStatusType;
 import demo.telegrambotcombatsimulator.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,11 +22,9 @@ import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageTe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import static demo.telegrambotcombatsimulator.enums.PlayerStatusType.*;
 import static demo.telegrambotcombatsimulator.enums.SessionStatusType.DO_ACTION;
@@ -71,12 +67,12 @@ public class TelegramBot extends TelegramLongPollingBot {
                     Цель игры - снижать здоровье соперника и не допускать потерю собственного здоровья.
                     Победителем будет считаться игрок, который в конце матча останется с ненулевым здоровьем.
                     Игроки начинают матч с 50 здоровья. Матч состоит из раундов.
-                    В каждом раунде игрок выбирает направление для атаки (голова/тело/ноги) и направление для защиты (голова/тело/ноги).
+                    В каждом раунде игрок выбирает направление для атаки (голова/корпус/ноги) и направление для защиты (голова/корпус/ноги).
                     Во время своего выбора игрок не может узнать о выборе соперника.
                     После выбора направлений игрок может сделать выбор повторно или подтвердить свою готовность в раунде.
                     После готовности двух игроков проверяются результаты атак в раунде.
                     Атака игрока считается успешной, если направлена на участок, который остался без защиты.
-                    При успешной атаке игрок наносит соперника урон в 10 единиц здоровья.
+                    При успешной атаке игрок наносит сопернику урон в 10 единиц здоровья.
                     Раунды повторяются до тех пор, пока какой-то игрок не остается с 0 единиц здоровья.
                                         
                     Одновременно игрок может участвовать только в одном матче.
@@ -87,7 +83,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     """;
 
     // Константа YES под текстовое наполнение кнопки
-    static final String YES = "Да";
+    static final String YES = "Да ✅";
 
     // Константа REG_YES под аргумент для .setCallbackData() в рамках регистрации
     static final String REG_YES = "REG_YES";
@@ -100,7 +96,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     static final String PLAY_FRIEND_YES = "PLAY_FRIEND_YES";
 
     // Константа NO под текстовое наполнение кнопки
-    static final String NO = "Нет";
+    static final String NO = "Нет ❌";
 
     // Константа REG_NO под аргумент для .setCallbackData() в рамках регистрации
     static final String REG_NO = "REG_NO";
@@ -111,19 +107,19 @@ public class TelegramBot extends TelegramLongPollingBot {
     // Константа "Возникла ошибка" под обработку исключений
     static final String ERROR_TEXT = "Error occurred: ";
 
-    static final String ATTACK = "Атака";
+    static final String ATTACK = "Атака ⚔";
 
-    static final String DEFENSE = "Защита";
+    static final String DEFENSE = "Защита \uD83D\uDEE1";
 
-    static final String HEAD = "Голова";
+    static final String HEAD ="Голова \uD83E\uDDE2";
 
-    static final String BODY = "Туловище";
+    static final String BODY = "Корпус \uD83D\uDC55";
 
-    static final String FOOT = "Ноги";
+    static final String LEGS = "Ноги \uD83D\uDC5F";
 
-    static final String CHOOSE_ATTACK = "Выберите направление атаки";
+    static final String CHOOSE_ATTACK = "Выберите направление атаки ⚔";
 
-    static final String CHOOSE_DEFENSE = "Выберите направление защиты";
+    static final String CHOOSE_DEFENSE = "Выберите направление защиты \uD83D\uDEE1";
 
     static final String ONLINE = "Онлайн";
 
@@ -238,7 +234,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                     break;
 
                 // Обрабатываем событие "Пользователь отправил сообщение - Голова"
-                case HEAD, BODY, FOOT:
+                case HEAD, BODY, LEGS:
                     setPlayerDirectionAndPrepareAttackDefenseChoose(chatId, messageText, userName);
                     break;
 
@@ -252,9 +248,47 @@ public class TelegramBot extends TelegramLongPollingBot {
                     sendCombatResultOrRefresh(chatId, userName);
                     break;
 
-                // Отбивка на незнакомое сообщение/команду
                 default:
-                    prepareAndSendMessage(chatId, "Вы отправили неизвестную или временно недоступную команду");
+
+                    // Пробуем пригласить друга в сессию
+                    if (messageText.charAt(0) == '@') {
+
+                        String friendName = messageText.substring(1);
+
+                        // todo Учесть активные сессии у друга - удалить их!
+                        if (friendName.equals(userName)) {
+
+                            prepareAndSendMessage(chatId, "Нельзя отправлять приглашение самому себе");
+                            break;
+
+                        } else if (userRepository.isExistByUserName(friendName)) {
+
+                            if (combatService.hasUserActiveSession(friendName)) {
+
+                                prepareAndSendMessage(chatId, "Другу необходимо завершить активную сессию или нажать /play для её удаления");
+
+                            } else {
+
+                                String text = "\nДелайте первый ход (пользуйтесь кнопками встроенной клавиатуры)\n";
+                                String textToUser = "Битва начинается! Ваш соперник - @" + friendName + text;
+                                String textToFriend = "Битва начинается! Ваш соперник - @" + userName + text;
+
+                                combatService.createSession(userName, friendName);
+                                prepareAndSendMessage(chatId, textToUser);
+                                sendAttackDefenseChoose(chatId);
+
+                                long friendChatId = userRepository.findByUserName(friendName).get().chatId();
+                                prepareAndSendMessage(friendChatId, textToFriend);
+                                sendAttackDefenseChoose(friendChatId);
+                            }
+
+                            break;
+
+                        } else
+                            prepareAndSendMessage(chatId, "Другу необходимо нажать /start для завершения регистрации в боте");
+
+                        // Отбивка на незнакомое сообщение/команду
+                    } else prepareAndSendMessage(chatId, "Вы отправили неизвестную или временно недоступную команду");
             }
         }
 
@@ -285,7 +319,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 // Обрабатываем событие "Пользователь нажал кнопку - Онлайн. Был вопрос (Выберите режим игры)"
                 // todo переименовать Онлайн и Оффлайн на Против игрока и Против компьютера(?)
                 case ONLINE, FRIEND, OFFLINE:
-                    String text= "Выбран режим игры: " + callbackData;
+                    String text = "Выбран режим игры: " + callbackData;
                     executeEditMessageText(text, chatId, messageId);
                     checkReadiness(chatId, callbackData);
                     break;
@@ -326,8 +360,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 case PLAY_FRIEND_YES:
 
-                    String PLAY_FR_YES = "В ответ укажите никнейм друга (через @)\n" +
-                            "Друг обязательно должен пройти авторизацию в боте";
+                    String PLAY_FR_YES = "В ответ укажите никнейм друга (через @)";
 
                     executeEditMessageText(PLAY_FR_YES, chatId, messageId);
 
@@ -375,8 +408,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     // Формируем приветственное сообщение, отправляем пользователю
     private void startCommandReceived(long chatId, String name) {
 
-        // Пример строки со смайликом
-        String answer = EmojiParser.parseToUnicode("Привет, " + name + ", рад нашей встрече!" + " :santa:");
+        String answer = "Привет, " + name + ", рад нашей встрече!" + " \uD83D\uDC7E";
         log.info("Replied to user " + name);
 
         prepareAndSendMessage(chatId, answer);
@@ -472,7 +504,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
-        message.setText("Выберите направления для атаки и защиты");
+        message.setText("Выберите направления для атаки ⚔ и защиты \uD83D\uDEE1");
 
         ArrayList<String> keys = new ArrayList<>();
         keys.add(ATTACK);
@@ -484,7 +516,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     // Передаём в сервис контроля игровых сессий выбор пользователя - Атака или Защита
-    // Отправляем пользователю сообщение с тремя кнопками - Голова, Тело и Ноги
+    // Отправляем пользователю сообщение с тремя кнопками - Голова, корпус и Ноги
     private void sendHeadBodyFootChooseAndSetPlayerDirection(long chatId, String answer, String userName) {
 
         SendMessage message = new SendMessage();
@@ -501,13 +533,13 @@ public class TelegramBot extends TelegramLongPollingBot {
         ArrayList<String> keys = new ArrayList<>();
         keys.add(HEAD);
         keys.add(BODY);
-        keys.add(FOOT);
+        keys.add(LEGS);
 
         setReplyKeyboard(message, keys);
         executeMessage(message);
     }
 
-    // Передаём в сервис контроля игровых сессий выбор пользователя - Голова, Тело или Ноги
+    // Передаём в сервис контроля игровых сессий выбор пользователя - Голова, корпус или Ноги
     // Если пользователь уже выбрал Атака и Защиту, то готовим сообщение с тремя кнопками - Атака, Защита и Готов
     // В противном случае готовим кнопки - Атака и Защита
     private void setPlayerDirectionAndPrepareAttackDefenseChoose(long chatId, String answer, String userName) {

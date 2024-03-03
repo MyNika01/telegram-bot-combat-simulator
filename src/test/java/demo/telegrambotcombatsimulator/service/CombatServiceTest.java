@@ -3,6 +3,8 @@ package demo.telegrambotcombatsimulator.service;
 import demo.telegrambotcombatsimulator.entity.Player;
 import demo.telegrambotcombatsimulator.enums.DirectionStatusType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -11,17 +13,22 @@ class CombatServiceTest {
 
     private final CombatService combatService = spy(CombatService.class);
 
-    @Test
-    void test_generateAndSetComputerDirection() { //todo входной парам инт, второй - то что ожидаю. Как загрузить параметры сюда?
+    @ParameterizedTest
+    @CsvSource({
+            "1, HEAD",
+            "2, BODY",
+            "3, LEGS"
+    })
+    void test_generateAndSetComputerDirection(int directionInt, DirectionStatusType directionEnum) {
 
         Player playerIn = new Player();
 
-        int max = 3, min = 1;
-        when(combatService.getRandomInt(max, min)).thenReturn(2);
+        int min = 1, max = 3;
+        when(combatService.getRandomInt(max, min)).thenReturn(directionInt);
 
         combatService.generateAndSetComputerDirection(playerIn);
 
-        assertEquals(DirectionStatusType.BODY, playerIn.getAttackDirection());
-        assertEquals(DirectionStatusType.BODY, playerIn.getDefenseDirection());
+        assertEquals(directionEnum, playerIn.getAttackDirection());
+        assertEquals(directionEnum, playerIn.getDefenseDirection());
     }
 }

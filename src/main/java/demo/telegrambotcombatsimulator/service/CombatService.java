@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import static demo.telegrambotcombatsimulator.enums.DirectionStatusType.*;
 import static demo.telegrambotcombatsimulator.enums.PlayerStatusType.*;
 import static demo.telegrambotcombatsimulator.enums.SessionStatusType.*;
+import static demo.telegrambotcombatsimulator.service.TelegramBot.ATTACK;
+import static demo.telegrambotcombatsimulator.service.TelegramBot.DEFENSE;
 
 @Service
 public class CombatService {
@@ -61,13 +63,13 @@ public class CombatService {
             switch (action) {
 
                 // Меняем статус игрока на "Ожидаем выбор направления атаки"
-                case "Атака" -> activePlayer.setStatus(WAIT_ATTACK);
+                case ATTACK -> activePlayer.setStatus(WAIT_ATTACK);
 
                 // Меняем статус игрока на "Ожидаем выбор направления защиты"
-                case "Защита" -> activePlayer.setStatus(WAIT_DEFENCE);
+                case DEFENSE -> activePlayer.setStatus(WAIT_DEFENCE);
 
                 // Указываем направление на Голову для Атаки/Защиты (зависит от последнего значения статуса игрока)
-                case "Голова" -> {
+                case TelegramBot.HEAD -> {
 
                     if (activePlayerStatus.equals(WAIT_ATTACK)) {
                         activePlayer.setAttackDirection(HEAD);
@@ -77,8 +79,8 @@ public class CombatService {
                     activePlayer.setStatus(P_EMPTY);
                 }
 
-                // Указываем направление на Тело для Атаки/Защиты (зависит от последнего значения статуса игрока)
-                case "Туловище" -> {
+                // Указываем направление на корпус для Атаки/Защиты (зависит от последнего значения статуса игрока)
+                case TelegramBot.BODY -> {
 
                     if (activePlayerStatus.equals(WAIT_ATTACK)) {
                         activePlayer.setAttackDirection(BODY);
@@ -89,7 +91,7 @@ public class CombatService {
                 }
 
                 // Указываем направление на Ноги для Атаки/Защиты (зависит от последнего значения статуса игрока)
-                case "Ноги" -> {
+                case TelegramBot.LEGS -> {
 
                     if (activePlayerStatus.equals(WAIT_ATTACK)) {
                         activePlayer.setAttackDirection(LEGS);
@@ -140,7 +142,7 @@ public class CombatService {
         player.setStatus(P_BLOCK);
     }
 
-    protected static int getRandomInt(int max, int min) {
+    public int getRandomInt(int max, int min) {
         return (int) (Math.random() * (max - min + 1)) + min;
     }
 
@@ -193,10 +195,10 @@ public class CombatService {
         secondPlayer.setDefenseDirection(D_EMPTY);
 
         // Формируем сообщение с результатом для первого игрока
-        firstPlayer.setMessageAsBattleResult(transToRus(spAttack), transToRus(fpDefense), transToRus(fpAttack), transToRus(spDefense), fpHealth, spHealth);
+        firstPlayer.setMessageAsBattleResult(spAttack, fpDefense, fpAttack, spDefense, fpHealth, spHealth);
 
         // Формируем сообщение с результатом для второго игрока
-        secondPlayer.setMessageAsBattleResult(transToRus(fpAttack), transToRus(spDefense), transToRus(spAttack), transToRus(fpDefense), spHealth, fpHealth);
+        secondPlayer.setMessageAsBattleResult(fpAttack, spDefense, spAttack, fpDefense, spHealth, fpHealth);
 
         // Возвращаем статус сессии на Подготовка
         combat.setSessionStatus(ACTION_PREPARE);
@@ -300,24 +302,6 @@ public class CombatService {
         combatRepository.save(combat);
     }
 
-    // Перевести ключевые слова с английского на русский
-    private String transToRus(DirectionStatusType engWord) {
-        switch (engWord) {
-            case HEAD -> {
-                return "голову";
-            }
-            case BODY -> {
-                return "тело";
-            }
-            case LEGS -> {
-                return "ноги";
-            }
-            default -> {
-                return "";
-            }
-        }
-    }
-
     // Проверяем существует ли активная сессия у пользователя
     public boolean hasUserActiveSession(String playerName) {
         return combatRepository.findByPlayerName(playerName).isPresent();
@@ -337,12 +321,12 @@ public class CombatService {
 
         if (firstPlayer.getName().equals(playerName)) {
 
-            return "Ваш последний выбор: атака - в " + transToRus(firstPlayer.getAttackDirection()) +
-                    ", защита - на " + transToRus(firstPlayer.getDefenseDirection());
+            return "Ваш последний выбор: ⚔->" + firstPlayer.getAttackDirection().toEmoji() +
+                    ", \uD83D\uDEE1->" + firstPlayer.getDefenseDirection().toEmoji();
         } else {
 
-            return "Ваш последний выбор: атака - в " + transToRus(secondPlayer.getAttackDirection()) +
-                    ", защита - на " + transToRus(secondPlayer.getDefenseDirection());
+            return "Ваш последний выбор: ⚔->" + secondPlayer.getAttackDirection().toEmoji() +
+                    ", \uD83D\uDEE1->" + secondPlayer.getDefenseDirection().toEmoji();
         }
     }
 }

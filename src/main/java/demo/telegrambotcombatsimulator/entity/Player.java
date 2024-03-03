@@ -30,11 +30,40 @@ public class Player {
         this.message = "empty";
     }
 
-    public void setMessageAsBattleResult(String enemyPlayerAttack, String playerDefense, String playerAttack, String enemyPlayerDefense, int playerHealth, int enemyHealth) {
+    public void setMessageAsBattleResult(DirectionStatusType enemyPlayerAttack, DirectionStatusType playerDefense, DirectionStatusType playerAttack, DirectionStatusType enemyPlayerDefense, int playerHealth, int enemyHealth) {
 
-        this.message = "Соперник нанёс удар в " + enemyPlayerAttack + ", а вы поставили защиту на " + playerDefense + "\n" +
-                "Ваше здоровье " + playerHealth + "/" + MAX_HP + "\n" +
-                "Вы нанесли удар в " + playerAttack + ", а соперник поставил защиту на " + enemyPlayerDefense + "\n" +
-                "Здоровье соперника " + enemyHealth + "/" + MAX_HP;
+        this.message =
+                "Соперник нанёс удар в " + enemyPlayerAttack +
+                        " ⚔->" + enemyPlayerAttack.toEmoji() + ", а вы поставили защиту на " + playerDefense +
+                        "\uD83D\uDEE1->" + playerDefense.toEmoji() + "\n" +
+
+                        attackResult(enemyPlayerAttack, playerDefense) +
+
+                        "Ваше здоровье " + playerHealth + "/" + MAX_HP + " " + healthToEmoji(playerHealth) + "\n\n" +
+
+                        "Вы нанесли удар в " + playerAttack +
+                        " ⚔->" + playerAttack.toEmoji() + ", а соперник поставил защиту на " + enemyPlayerDefense +
+                        "\uD83D\uDEE1->" + enemyPlayerDefense.toEmoji() + "\n" +
+
+                        attackResult(playerAttack, enemyPlayerDefense) +
+
+                        "Здоровье соперника " + enemyHealth + "/" + MAX_HP + " " + healthToEmoji(enemyHealth);
+    }
+
+    private String healthToEmoji(int health) {
+
+        StringBuilder emoji = new StringBuilder();
+
+        for (int i = 0; i < MAX_HP; i = i + 10) {
+            if (i < health) emoji.append("❤");
+            else emoji.append("\uD83D\uDC94");
+        }
+
+        return emoji.toString();
+    }
+
+    private String attackResult (DirectionStatusType attack, DirectionStatusType defense) {
+
+        return attack==defense ? "Блок удара!\uD83D\uDEE1\n" : "Успешный удар!\uD83E\uDE78\n";
     }
 }
