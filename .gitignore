@@ -4,6 +4,7 @@ out/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+telegram-bot-combat-simulator.jar
 
 ### STS ###
 .apt_generated
@@ -19,7 +20,6 @@ out/
 *.iws
 *.iml
 *.ipr
-.mvn
 
 ### NetBeans ###
 /nbproject/private/
@@ -63,6 +63,9 @@ replay_pid*
 # Maven
 dist/
 .flattened-pom.xml
+mvnw
+mvnw.cmd
+.mvn
 
 # JetBrains IDE
 .idea/
