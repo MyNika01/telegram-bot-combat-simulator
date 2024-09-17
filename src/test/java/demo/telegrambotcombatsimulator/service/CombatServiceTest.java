@@ -2,7 +2,6 @@ package demo.telegrambotcombatsimulator.service;
 
 import demo.telegrambotcombatsimulator.entity.Player;
 import demo.telegrambotcombatsimulator.enums.DirectionStatusType;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -24,7 +23,7 @@ class CombatServiceTest {
         Player playerIn = new Player();
 
         int min = 1, max = 3;
-        when(combatService.getRandomInt(max, min)).thenReturn(directionInt);
+        when(combatService.getRandomInt(min, max)).thenReturn(directionInt);
 
         combatService.generateAndSetComputerDirection(playerIn);
 
